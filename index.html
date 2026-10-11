@@ -20698,6 +20698,7 @@ var __async = (__this, __arguments, generator) => {
             display: none !important;
         }
 
+    @media (max-width: 767px) { header.sticky { position: static; } }
 </style>
 </head>
 <body class="bg-slate-100 text-slate-800 font-sans">
@@ -20754,6 +20755,11 @@ var __async = (__this, __arguments, generator) => {
                         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 17V7m0 10a2 2 0 01-2 2H5a2 2 0 01-2-2V7a2 2 0 012-2h2a2 2 0 012 2m0 10a2 2 0 002 2h2a2 2 0 002-2M9 7a2 2 0 012-2h2a2 2 0 012 2m0 10V7m0 10a2 2 0 002 2h2a2 2 0 002-2V7a2 2 0 00-2-2h-2a2 2 0 00-2 2"></path></svg>
                         合併列印多筆紀錄表 (<span id="mergeListCountBadge">0</span>)
                     </button>
+                    <!-- 【新功能】手機填報模式：僅限紀錄表分頁，將目前紀錄表內容改以單欄卡片排版顯示，
+                         方便在手機等小螢幕上檢視；不影響原有標準 A4 預覽/列印版面，列印時一律自動強制改用標準版面。 -->
+                    <button id="mobilePreviewToggleBtn" onclick="toggleMobilePreviewMode()" class="bg-slate-600 hover:bg-slate-700 px-4 py-1.5 rounded text-sm transition flex items-center gap-1">
+                        <span>📱</span><span>手機填報模式</span>
+                    </button>
                 </div>
 
                 <!-- 流程圖分頁專屬操作按鈕 (預設隱藏，切到「流程圖」分頁時顯示) -->
@@ -20791,7 +20797,7 @@ var __async = (__this, __arguments, generator) => {
     <main id="tabPanel_record" class="app-tab active workspace-shell px-3 md:px-4 py-4 md:py-5 grid grid-cols-1 lg:grid-cols-12 gap-4">
 
         <!-- ============================== 左側：資料填報面板 (列印時隱藏) ============================== -->
-        <section class="no-print lg:col-span-4 bg-white rounded-lg shadow border border-slate-200 p-4 space-y-4 h-fit">
+        <section id="recordInputPanel" class="no-print lg:col-span-4 bg-white rounded-lg shadow border border-slate-200 p-4 space-y-4 h-fit">
             <h2 class="text-lg font-bold border-b pb-2 border-slate-200 text-slate-700">抽查表單填寫</h2>
 
             <div class="space-y-3">
@@ -21029,6 +21035,11 @@ var __async = (__this, __arguments, generator) => {
                 </div>
 
             </div>
+
+            <!-- ============================== 手機預覽模式 (僅紀錄表分頁) ==============================
+                 與上方 #printArea 互斥顯示 (toggleMobilePreviewMode())；內容由 renderMobilePreview() 動態產生，
+                 單欄卡片排版，不套用 print-page 的 A4 列印樣式。預設隱藏。 -->
+            <div id="mobilePreviewArea" class="hidden w-full bg-slate-100 p-3 rounded-lg no-print"></div>
         </section>
     </main>
 
@@ -21554,6 +21565,9 @@ var __async = (__this, __arguments, generator) => {
             renderOverviewMajorFilterButtons();
             setFlowLayoutOrientation('vertical');
             updateCloudSyncStatusDot();
+
+            // 手機等窄螢幕開啟時，預設直接進入手機填報模式 (可用右上按鈕切回標準版面)
+            if (window.innerWidth < 768 && !mobilePreviewModeActive) toggleMobilePreviewMode();
         });
 
         // 讀取內嵌於頁面中的預設標準資料庫 JSON (僅負責解析，不直接寫入 standardDatabase)
@@ -21745,17 +21759,64 @@ var __async = (__this, __arguments, generator) => {
 
             renderManagementItems(rows);
 
-            // 表單編號隨工項自動帶入 (如 E01-01)，並提醒使用者補上 4 碼流水號
-            const noInput = document.getElementById('in_no');
-            const hint = document.getElementById('formNoHint');
-            if (categoryCode) {
-                noInput.value = `${categoryCode}-0001`;
-                hint.textContent = `⚠ 表單編號已依工項自動帶入，請自行將末 4 碼流水號改為正確且連續之編號 (不得跳號)。`;
-            } else {
-                hint.textContent = '';
-            }
+            // 表單編號隨工項自動帶入 (如 E01-0001)，若已設定並啟用雲端同步，會向 Google Sheet
+            // 查詢該工項目前已使用之最大流水號，並自動接續 (各工項各自獨立編號)；
+            // 未啟用雲端同步，或查詢失敗/逾時，則退回離線預設值 (xxx-0001) 並提醒使用者自行確認。
+            updateFormNoForCategory(categoryCode);
 
             syncToPreview(); // 同步更新表頭上顯示的分項工程名稱與編號
+        }
+
+        // 請求序號計數器：避免使用者快速切換工項時，較舊的非同步查詢結果在較新的查詢完成「之後」才回來，
+        // 反而覆蓋掉使用者目前真正選取的工項之查詢結果。
+        let formNoRequestCounter = 0;
+
+        async function updateFormNoForCategory(categoryCode) {
+            const noInput = document.getElementById('in_no');
+            const hint = document.getElementById('formNoHint');
+            if (!categoryCode) {
+                hint.textContent = '';
+                return;
+            }
+
+            const offlineDefault = `${categoryCode}-0001`;
+            const offlineHint = '⚠ 表單編號已依工項自動帶入，請自行將末 4 碼流水號改為正確且連續之編號 (不得跳號)。';
+
+            const url = getCloudSyncUrl();
+            if (!url || !isCloudSyncEnabled()) {
+                noInput.value = offlineDefault;
+                hint.textContent = offlineHint;
+                syncToPreview();
+                return;
+            }
+
+            // 查詢期間先帶入離線預設值，避免欄位空白；查詢完成後再視結果覆蓋。
+            noInput.value = offlineDefault;
+            hint.innerHTML = '<span class="text-blue-600">🔄 正在向雲端查詢本工項最新流水號…</span>';
+
+            const requestToken = ++formNoRequestCounter;
+            try {
+                const resp = await fetch(url, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+                    body: JSON.stringify({ action: 'nextFormNo', categoryCode })
+                });
+                const data = await resp.json().catch(() => null);
+                if (requestToken !== formNoRequestCounter) return; // 使用者已切換到別的工項，此結果已過期，忽略
+                if (data && data.success && data.nextNo) {
+                    noInput.value = data.nextNo;
+                    hint.innerHTML = '<span class="text-emerald-600">✓ 已依雲端試算表紀錄自動接續編號 (本工項獨立編號)</span>';
+                } else {
+                    noInput.value = offlineDefault;
+                    hint.textContent = offlineHint + '（雲端查詢未取得結果，已退回預設編號，請自行確認）';
+                }
+                syncToPreview();
+            } catch (err) {
+                if (requestToken !== formNoRequestCounter) return;
+                noInput.value = offlineDefault;
+                hint.textContent = offlineHint + '（雲端查詢失敗，已退回預設編號，請自行確認）';
+                syncToPreview();
+            }
         }
 
         /* =====================================================================================
@@ -21811,6 +21872,8 @@ var __async = (__this, __arguments, generator) => {
                 `;
                 tbody.appendChild(tr);
             });
+
+            refreshMobilePreviewIfActive();
         }
 
         // 當使用者編輯某一格輸入框時，同步更新同一格中隱藏的「列印用純文字版本」
@@ -21822,6 +21885,7 @@ var __async = (__this, __arguments, generator) => {
             } else {
                 printDiv.textContent = inputEl.value;
             }
+            refreshMobilePreviewIfActive();
         }
 
         // 將目前表格 DOM 中的資料「讀出」成陣列，供新增列/刪除列/匯出 Word 前重組資料使用
@@ -21959,6 +22023,7 @@ var __async = (__this, __arguments, generator) => {
 
             if (photos.length === 0) {
                 section.classList.add('hidden');
+                refreshMobilePreviewIfActive();
                 return;
             }
             section.classList.remove('hidden');
@@ -22006,12 +22071,15 @@ var __async = (__this, __arguments, generator) => {
 
                 container.appendChild(page);
             }
+
+            refreshMobilePreviewIfActive();
         }
 
         // 更新指定照片的詳細說明文字 (儲存於 photos[] 陣列中)
         function updatePhotoDesc(photoId, value) {
             const p = photos.find(p => p.id === photoId);
             if (p) p.desc = value;
+            refreshMobilePreviewIfActive();
         }
 
         /* =====================================================================================
@@ -23711,11 +23779,272 @@ var __async = (__this, __arguments, generator) => {
         }
 
         function printCurrentRecordWithSync() {
-            syncThenProceed(() => window.print());
+            syncThenProceed(() => printWithStandardView());
+        }
+
+        // 列印時務必使用「標準列印版面」，即使使用者目前正處於手機預覽模式 (mobilePreviewArea 顯示中)，
+        // 也要在實際呼叫 window.print() 的瞬間暫時切回標準版面 (printArea)，列印/另存 PDF 結束後再切回使用者原本選擇的畫面，
+        // 避免因 Tailwind 的 .hidden 不受 @media print 影響，導致列印出空白或錯誤版面。
+        function printWithStandardView() {
+            const wasMobilePreview = mobilePreviewModeActive;
+            if (wasMobilePreview) {
+                document.getElementById('printArea').classList.remove('hidden');
+                document.getElementById('mobilePreviewArea').classList.add('hidden');
+            }
+            window.print();
+            if (wasMobilePreview) {
+                document.getElementById('printArea').classList.add('hidden');
+                document.getElementById('mobilePreviewArea').classList.remove('hidden');
+            }
         }
 
         function exportWordDocumentWithSync() {
             syncThenProceed(() => exportWordDocument());
+        }
+
+        /* =====================================================================================
+         * 【新功能】手機預覽模式 (僅限「紀錄表」分頁)
+         * - 將目前的紀錄表內容重新排成單欄卡片式版面，方便在手機等小螢幕上檢視，
+         *   不影響原有的標準 A4 預覽/列印版面 (printArea)，兩者互斥顯示 (toggle)。
+         * - 列印/匯出 PDF 時一律強制改用標準版面 (見 printWithStandardView())，
+         *   結束後再切回使用者原本選擇的畫面，避免印出手機版卡片排版。
+         * - 任何會改變紀錄表內容的動作 (新增/刪除管理項目列、編輯欄位、上傳/刪除照片、
+         *   編輯照片說明、同步表頭資訊) 都呼叫 refreshMobilePreviewIfActive()，
+         *   確保手機預覽模式開啟時內容會即時同步，不需使用者手動切換分頁才會更新。
+         * ===================================================================================== */
+        let mobilePreviewModeActive = false;
+
+        function toggleMobilePreviewMode() {
+            mobilePreviewModeActive = !mobilePreviewModeActive;
+            const printArea = document.getElementById('printArea');
+            const mobileArea = document.getElementById('mobilePreviewArea');
+            const btn = document.getElementById('mobilePreviewToggleBtn');
+
+            if (mobilePreviewModeActive) {
+                printArea.classList.add('hidden');
+                mobileArea.classList.remove('hidden');
+                document.getElementById('recordInputPanel').classList.add('hidden');
+                btn.innerHTML = '<span>🖥️</span><span>回標準版面</span>';
+                btn.classList.remove('bg-slate-600', 'hover:bg-slate-700');
+                btn.classList.add('bg-teal-600', 'hover:bg-teal-700');
+                renderMobilePreview();
+            } else {
+                printArea.classList.remove('hidden');
+                mobileArea.classList.add('hidden');
+                document.getElementById('recordInputPanel').classList.remove('hidden');
+                syncToPreview(); // 手機模式下修改的照片說明等，回到標準版面時一併刷新
+                btn.innerHTML = '<span>📱</span><span>手機填報模式</span>';
+                btn.classList.remove('bg-teal-600', 'hover:bg-teal-700');
+                btn.classList.add('bg-slate-600', 'hover:bg-slate-700');
+            }
+        }
+
+        // 供各資料變動點呼叫：僅在手機預覽模式「目前為開啟中」時才重新渲染，避免不必要的重算。
+        function refreshMobilePreviewIfActive() {
+            if (mobilePreviewModeActive && !mobileWriteThrough) renderMobilePreview();
+        }
+
+        let mobileWriteThrough = false;   // 手機欄位「寫回」主表單期間為 true，避免重新渲染造成輸入框失去焦點
+        let mobileBasicInfoOpen = false;
+
+        const RESULT_BTN = {
+            '○': { label: '○ 合格',   on: 'bg-emerald-600 text-white border-emerald-600' },
+            '╳': { label: '╳ 不合格', on: 'bg-red-600 text-white border-red-600' },
+            '／': { label: '／ 不適用', on: 'bg-slate-500 text-white border-slate-500' }
+        };
+        const RESULT_BTN_OFF = 'bg-white text-slate-600 border-slate-300';
+
+        function mobileFieldHtml(id, label, type) {
+            const el = document.getElementById(id);
+            return `<div>
+                <label class="block text-xs text-slate-500 mb-0.5">${escapeHtml(label)}</label>
+                <input type="${type || 'text'}" data-bind="${id}" value="${escapeHtml(el ? el.value : '')}"
+                    class="w-full border border-slate-300 rounded-lg p-2 text-base" oninput="mobileBindHeader(this)" onchange="mobileBindHeader(this)">
+            </div>`;
+        }
+
+        // 表頭欄位：寫回主表單對應欄位，並同步預覽 (不重新渲染手機畫面)
+        function mobileBindHeader(el) {
+            const target = document.getElementById(el.dataset.bind);
+            if (!target) return;
+            target.value = el.value;
+            mobileWriteThrough = true;
+            try { syncToPreview(); } finally { mobileWriteThrough = false; }
+        }
+
+        function mobileFindRow(rowId) {
+            return document.querySelector(`#managementItemsBody tr[data-row-id="${rowId}"]`);
+        }
+
+        // 管理項目欄位 (實測值／備註／自訂項目名稱)：寫回主表單同一列
+        function mobileItemInput(el) {
+            const tr = mobileFindRow(el.dataset.row);
+            const target = tr && tr.querySelector(`[data-field="${el.dataset.field}"]`);
+            if (!target) return;
+            target.value = el.value;
+            mobileWriteThrough = true;
+            try { syncRowToPrintView(target); } finally { mobileWriteThrough = false; }
+            updateMobileProgress();
+        }
+
+        function mobileSetResult(rowId, val, btn) {
+            const tr = mobileFindRow(rowId);
+            const target = tr && tr.querySelector('[data-field="result"]');
+            if (!target) return;
+            target.value = val;
+            mobileWriteThrough = true;
+            try { syncRowToPrintView(target); } finally { mobileWriteThrough = false; }
+            btn.parentElement.querySelectorAll('button').forEach(b => {
+                const v = b.dataset.val;
+                b.className = 'flex-1 py-3 rounded-lg border text-sm font-bold ' + (v === val ? RESULT_BTN[v].on : RESULT_BTN_OFF);
+            });
+            updateMobileProgress();
+        }
+
+        function mobilePhotoDesc(photoId, el) {
+            mobileWriteThrough = true;
+            try { updatePhotoDesc(photoId, el.value); } finally { mobileWriteThrough = false; }
+        }
+
+        function mobileChangeCategory(value) {
+            document.getElementById('subProjectSelect').value = value;
+            onSubProjectChange();
+        }
+
+        function updateMobileProgress() {
+            const el = document.getElementById('mobileProgress');
+            if (!el) return;
+            const items = scrapeCurrentItemsFromDOM();
+            const filled = items.filter(i => (i.actual || '').trim() !== '').length;
+            const ng = items.filter(i => i.result === '╳').length;
+            el.innerHTML = `已填寫 <b>${filled}</b> / ${items.length} 項` +
+                (ng > 0 ? `　<span class="text-red-600 font-bold">不合格 ${ng} 項</span>` : '');
+        }
+
+        async function mobileSubmitToCloud() {
+            const url = getCloudSyncUrl();
+            if (!url || !isCloudSyncEnabled()) {
+                alert('尚未設定或啟用雲端同步。\n請先到頁首「☁️ 雲端同步設定」貼上網址並勾選啟用。');
+                return;
+            }
+            const record = buildCurrentRecordSnapshot();
+            const n = (record.photos || []).length;
+            showCloudSyncOverlay(n > 0 ? `正在提交到雲端（含 ${n} 張照片，請稍候）…` : '正在提交到雲端…');
+            const result = await syncRecordToGoogleSheet(record);
+            hideCloudSyncOverlay();
+            if (result.success) {
+                alert(`✓ 已提交到雲端\n表單編號：${record.no}`);
+            } else {
+                alert('✗ 提交失敗：' + ((result.error && result.error.message) || '未知錯誤') + '\n請確認網路後再試一次。');
+            }
+        }
+
+        function renderMobilePreview() {
+            const area = document.getElementById('mobilePreviewArea');
+            if (!area) return;
+            const record = buildCurrentRecordSnapshot();
+            const sel = document.getElementById('subProjectSelect');
+
+            const catOptions = Array.from(sel.options).map(o =>
+                `<option value="${escapeHtml(o.value)}" ${o.value === sel.value ? 'selected' : ''}>${escapeHtml(o.textContent)}</option>`).join('');
+            const majorOptions = [{ code: 'ALL', label: '全部大類' }].concat(MAJOR_CATEGORIES.map(m => ({ code: m.code, label: `${m.code}${m.label}` })))
+                .map(m => `<option value="${m.code}" ${m.code === currentMajorFilter ? 'selected' : ''}>${escapeHtml(m.label)}</option>`).join('');
+
+            const itemsHtml = (record.items || []).map((item, idx) => {
+                const id = item.id;
+                const btns = ['○', '╳', '／'].map(v =>
+                    `<button type="button" data-val="${v}" onclick="mobileSetResult(${id}, '${v}', this)"
+                        class="flex-1 py-3 rounded-lg border text-sm font-bold ${item.result === v ? RESULT_BTN[v].on : RESULT_BTN_OFF}">${RESULT_BTN[v].label}</button>`).join('');
+                const stageText = [item.stage, item.process].filter(Boolean).join('／');
+                const nameHtml = item.item
+                    ? `<div class="text-base font-bold mb-1 break-words">${escapeHtml(item.item)}</div>`
+                    : `<input type="text" data-row="${id}" data-field="item" placeholder="自訂管理項目名稱" value=""
+                           class="w-full border border-slate-300 rounded-lg p-2 text-base mb-2" oninput="mobileItemInput(this)">`;
+                const stdHtml = item.standard
+                    ? `<details class="mb-2"><summary class="text-xs text-blue-600 cursor-pointer">查看抽查標準</summary>
+                           <div class="text-xs text-slate-600 whitespace-pre-wrap mt-1 bg-slate-50 rounded p-2">${escapeHtml(item.standard)}</div></details>`
+                    : '';
+                return `
+                <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-3 mb-3">
+                    <div class="text-xs text-slate-400 mb-1">第 ${idx + 1} 項${stageText ? '　' + escapeHtml(stageText) : ''}</div>
+                    ${nameHtml}
+                    ${stdHtml}
+                    <div class="flex gap-2 mb-2">${btns}</div>
+                    <textarea rows="2" data-row="${id}" data-field="actual" placeholder="實測值／抽查情形…"
+                        class="w-full border border-slate-300 rounded-lg p-2 text-base mb-2" oninput="mobileItemInput(this)">${escapeHtml(item.actual || '')}</textarea>
+                    <input type="text" data-row="${id}" data-field="note" placeholder="備註" value="${escapeHtml(item.note || '')}"
+                        class="w-full border border-slate-300 rounded-lg p-2 text-sm" oninput="mobileItemInput(this)">
+                </div>`;
+            }).join('');
+
+            const photosHtml = (record.photos || []).map((p, idx) => `
+                <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-2 mb-3">
+                    <img src="${p.dataUrl}" class="w-full rounded-lg" alt="現場照片 ${idx + 1}">
+                    <div class="text-xs font-bold mt-1">照片 ${idx + 1}：${escapeHtml(record.location || '')}</div>
+                    <textarea rows="2" placeholder="照片說明…" class="w-full border border-slate-300 rounded-lg p-2 text-sm mt-1"
+                        oninput="mobilePhotoDesc(${p.id}, this)">${escapeHtml(p.desc || '')}</textarea>
+                    <button type="button" onclick="removePhoto(${p.id})" class="mt-1 text-red-600 text-xs border border-red-300 rounded px-3 py-1.5">移除此照片</button>
+                </div>`).join('');
+
+            const hdr = document.querySelector('header');
+            const stickyTop = (hdr && getComputedStyle(hdr).position === 'sticky') ? hdr.offsetHeight : 0;
+
+            area.innerHTML = `
+                <div class="max-w-md mx-auto pb-24">
+                    <div id="mobileProgress" class="sticky z-30 bg-blue-50 border border-blue-200 text-blue-900 text-sm rounded-lg px-3 py-2 mb-3 shadow-sm" style="top:${stickyTop}px"></div>
+
+                    <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-3 mb-3 space-y-2">
+                        <div class="grid grid-cols-2 gap-2">
+                            <div>
+                                <label class="block text-xs text-slate-500 mb-0.5">大類</label>
+                                <select class="w-full border border-slate-300 rounded-lg p-2 text-base bg-white" onchange="selectMajorFilter(this.value)">${majorOptions}</select>
+                            </div>
+                            <div>
+                                <label class="block text-xs text-slate-500 mb-0.5">表單編號</label>
+                                <div class="border border-slate-200 bg-slate-50 rounded-lg p-2 text-base font-medium">${escapeHtml(record.no || '')}</div>
+                            </div>
+                        </div>
+                        <div>
+                            <label class="block text-xs text-slate-500 mb-0.5">分項工程</label>
+                            <select class="w-full border border-slate-300 rounded-lg p-2 text-base bg-white" onchange="mobileChangeCategory(this.value)">${catOptions}</select>
+                        </div>
+                        ${mobileFieldHtml('in_location', '抽查位置')}
+                        ${mobileFieldHtml('in_inspector', '抽查人員')}
+                        <details ${mobileBasicInfoOpen ? 'open' : ''} ontoggle="mobileBasicInfoOpen = this.open">
+                            <summary class="text-sm text-blue-600 cursor-pointer py-1">更多基本資料（日期／工程／廠商／編號）</summary>
+                            <div class="space-y-2 mt-2">
+                                ${mobileFieldHtml('in_date', '抽查日期', 'date')}
+                                ${mobileFieldHtml('in_no', '表單編號（可修改）')}
+                                ${mobileFieldHtml('in_projName', '工程名稱')}
+                                ${mobileFieldHtml('in_contractor', '施工廠商')}
+                                ${mobileFieldHtml('in_proofDoc', '證明文件記錄')}
+                            </div>
+                        </details>
+                    </div>
+
+                    <div class="text-sm font-bold text-slate-600 mb-2 px-1">管理項目（共 ${(record.items || []).length} 項）</div>
+                    ${itemsHtml || '<div class="text-xs text-slate-400 px-1 mb-3">（尚無管理項目）</div>'}
+                    <button type="button" onclick="addManagementItemRow()" class="w-full bg-slate-700 text-white py-3 rounded-lg text-sm font-medium mb-4">＋ 新增自訂抽查項目</button>
+
+                    <div class="text-sm font-bold text-slate-600 mb-2 px-1">現場照片（${(record.photos || []).length} 張）</div>
+                    <div class="flex gap-2 mb-3">
+                        <label class="flex-1 text-center bg-blue-600 text-white py-3 rounded-lg text-sm font-medium cursor-pointer">📷 拍照
+                            <input type="file" accept="image/*" capture="environment" class="hidden" onchange="handlePhotoUpload(event)">
+                        </label>
+                        <label class="flex-1 text-center bg-white text-blue-700 border border-blue-300 py-3 rounded-lg text-sm font-medium cursor-pointer">🖼 相簿選取
+                            <input type="file" accept="image/*" multiple class="hidden" onchange="handlePhotoUpload(event)">
+                        </label>
+                    </div>
+                    ${photosHtml}
+                </div>
+
+                <div class="fixed bottom-0 left-0 right-0 z-40 bg-white border-t border-slate-300 p-2 flex gap-2 no-print">
+                    <button type="button" onclick="mobileSubmitToCloud()" class="flex-1 bg-teal-600 text-white py-3 rounded-lg text-sm font-bold">☁️ 提交雲端</button>
+                    <button type="button" onclick="exportWordDocumentWithSync()" class="flex-1 bg-indigo-600 text-white py-3 rounded-lg text-sm font-bold">📄 匯出 Word</button>
+                    <button type="button" onclick="printCurrentRecordWithSync()" class="flex-1 bg-blue-600 text-white py-3 rounded-lg text-sm font-bold">🖨 列印</button>
+                </div>
+            `;
+            updateMobileProgress();
         }
 
         function buildExcelTemplateRecord(category) {
