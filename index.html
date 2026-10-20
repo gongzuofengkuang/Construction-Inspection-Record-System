@@ -20271,16 +20271,9 @@ var __async = (__this, __arguments, generator) => {
          * ===================================================================================== */
         .app-tab { display: none !important; }
         .app-tab.active { display: block !important; }
-        /* 三個分頁完全隔離：任何非目前分頁的內容都不得殘留在畫面或列印區。 */
+        /* 分頁完全隔離：任何非目前分頁的內容都不得殘留在畫面或列印區。 */
         #tabPanel_record:not(.active),
-        #tabPanel_flow:not(.active),
-        #tabPanel_overview:not(.active) { display: none !important; }
-        #tabPanel_overview .overview-preview-grid { align-items: start; }
-        #tabPanel_overview .overview-preview-card { min-width: 0; overflow: hidden; }
-        #tabPanel_overview .overview-record-scale {
-            width: 100%;
-            transform-origin: top left;
-        }
+        #tabPanel_flow:not(.active) { display: none !important; }
         .tab-nav-btn {
             padding: 0.55rem 1rem;
             font-size: 0.8rem;
@@ -20468,8 +20461,7 @@ var __async = (__this, __arguments, generator) => {
         }
 
         /* 大類按鈕區：與總覽保持同一視覺語言 */
-        #majorFilterButtons,
-        #overviewMajorFilterButtons {
+        #majorFilterButtons {
             padding: 0.15rem 0;
             align-items: center;
             row-gap: 0.35rem;
@@ -20545,22 +20537,6 @@ var __async = (__this, __arguments, generator) => {
         #tabPanel_flow #nodesEditorList {
             max-height: min(48vh, 430px);
             overscroll-behavior: contain;
-        }
-
-        /* 總覽預覽：上方選擇區與下方 5/7 預覽區視覺統一 */
-        #tabPanel_overview .overview-preview-grid {
-            grid-template-columns: repeat(12, minmax(0, 1fr));
-        }
-
-        @media (min-width: 1024px) {
-            #tabPanel_overview .overview-preview-grid > .overview-preview-card:first-child { grid-column: span 5 / span 5; }
-            #tabPanel_overview .overview-preview-grid > .overview-preview-card:last-child { grid-column: span 7 / span 7; }
-        }
-
-        #tabPanel_overview .overview-preview-card {
-            border-color: var(--ui-border);
-            box-shadow: 0 3px 14px rgba(15, 23, 42, .06);
-            min-width: 0;
         }
 
         /* 手機／平板：取消 sticky，避免操作區壓縮預覽 */
@@ -20790,7 +20766,6 @@ var __async = (__this, __arguments, generator) => {
         <div class="max-w-7xl mx-auto flex gap-1 pt-2 -mb-4">
             <button id="tabBtn_record" onclick="switchTab('record')" class="tab-nav-btn tab-nav-btn-active">📋 紀錄表</button>
             <button id="tabBtn_flow" onclick="switchTab('flow')" class="tab-nav-btn">🧭 流程圖</button>
-            <button id="tabBtn_overview" onclick="switchTab('overview')" class="tab-nav-btn">🔎 總覽預覽</button>
         </div>
     </header>
 
@@ -20972,6 +20947,20 @@ var __async = (__this, __arguments, generator) => {
                     <tbody id="managementItemsBody">
                         <!-- 由 JavaScript 依「分項工程」篩選標準資料庫後動態繪製，使用者可自由新增/修改/刪除 -->
                     </tbody>
+                    <!-- 固定列：※安全衛生查驗點 (每張紀錄表皆須有，位於所有管理項目之後)。
+                         左側 (施工階段/流程/管理項目) 合併為一格，抽查標準為固定文字，
+                         「實際抽查情形」欄為四個勾選：施工前／施工中／施工後／不定期 (共 4 小列)。 -->
+                    <tbody id="safetyCheckBody">
+                        <tr>
+                            <td colspan="3" rowspan="4" class="text-center font-bold text-xs" style="vertical-align:middle;">※安全衛生查驗點</td>
+                            <td rowspan="4" class="auto-wrap text-xs" style="vertical-align:middle;">檢視承攬廠商安全衛生自動檢查表單填報情形及填具施工安全衛生抽查紀錄表</td>
+                            <td class="text-xs"><label class="cursor-pointer"><input type="checkbox" id="safety_chk_before"> 施工前</label></td>
+                            <td></td><td></td><td class="no-print"></td>
+                        </tr>
+                        <tr><td class="text-xs"><label class="cursor-pointer"><input type="checkbox" id="safety_chk_during"> 施工中</label></td><td></td><td></td><td class="no-print"></td></tr>
+                        <tr><td class="text-xs"><label class="cursor-pointer"><input type="checkbox" id="safety_chk_after"> 施工後</label></td><td></td><td></td><td class="no-print"></td></tr>
+                        <tr><td class="text-xs"><label class="cursor-pointer"><input type="checkbox" id="safety_chk_adhoc"> 不定期</label></td><td></td><td></td><td class="no-print"></td></tr>
+                    </tbody>
                 </table>
 
                 <!-- 以外層 <div> 包裹「缺失複查結果表格＋簽核欄」，並套用 page-break-inside: avoid，
@@ -21132,34 +21121,6 @@ var __async = (__this, __arguments, generator) => {
         </section>
     </main>
 
-    <!-- ============================== 分頁三：總覽預覽 (紀錄表 + 程序表 並排檢視) ==============================
-         滿足「同一份標準資料庫，可快速比對同一工項的紀錄表與程序表」需求；此分頁僅供檢視，不可編輯。 -->
-    <main id="tabPanel_overview" class="app-tab max-w-7xl mx-auto p-4 md:p-6 space-y-5">
-        <!-- 總覽預覽只保留「依大類篩選」及「選擇分項工程」兩項功能，置中於上方。 -->
-        <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-5 no-print">
-            <div class="flex flex-col items-center gap-3">
-                <div class="text-xs font-bold text-slate-500 uppercase tracking-wider">依大類篩選分項工程</div>
-                <div id="overviewMajorFilterButtons" class="flex flex-wrap justify-center gap-1.5"></div>
-                <div class="flex flex-col sm:flex-row items-center justify-center gap-2 w-full">
-                    <label for="overviewSubProjectSelect" class="text-xs font-bold text-slate-600 whitespace-nowrap">選擇分項工程 (自動帶入管理項目)</label>
-                    <select id="overviewSubProjectSelect" onchange="renderOverviewPreview()" class="border rounded p-2 text-sm bg-slate-50 focus:bg-white transition min-w-[280px] max-w-full"></select>
-                </div>
-            </div>
-        </div>
-
-        <!-- 左下程序圖、右下紀錄表；程序圖略寬，紀錄表保持可讀性。 -->
-        <div class="overview-preview-grid grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">
-            <div class="overview-preview-card lg:col-span-5 bg-white rounded-xl shadow-sm border border-slate-200 p-4">
-                <h3 class="text-sm font-extrabold text-slate-700 mb-3 pb-2 border-b border-slate-200">🧭 程序表預覽</h3>
-                <div id="overviewFlowPreview"></div>
-            </div>
-            <div class="overview-preview-card lg:col-span-7 bg-white rounded-xl shadow-sm border border-slate-200 p-4">
-                <h3 class="text-sm font-extrabold text-slate-700 mb-3 pb-2 border-b border-slate-200">📋 紀錄表預覽</h3>
-                <div id="overviewRecordPreview" class="overview-record-scale"></div>
-            </div>
-        </div>
-    </main>
-
     <!-- ============================== 合併列印功能：選取清單 Modal (新功能，預設隱藏) ==============================
          列出所有已加入清單的紀錄表快照，供使用者勾選 (預設全選) 後一次合併列印。與原有單筆列印/匯出功能完全獨立。 -->
     <div id="mergePrintModal" class="no-print hidden fixed inset-0 bg-black/50 z-[100] flex items-center justify-center p-4">
@@ -21315,7 +21276,7 @@ var __async = (__this, __arguments, generator) => {
                     <span class="font-bold text-slate-300">圖例：</span>
                     <span><span class="bg-red-200 text-red-800 line-through decoration-2 px-1">刪除的文字</span>（僅原資料側顯示）</span>
                     <span><span class="bg-emerald-200 text-emerald-900 underline decoration-2 px-1">新增的文字</span>（僅 Excel 資料側顯示）</span>
-                    <span class="text-slate-400">相同文字兩側正常顯示，一眼就能看出是否只是微調</span>
+                    <span class="text-slate-400">原版與進版皆顯示完整文字，中間以橫線區隔；空白、換行、全形半形與相容字元差異已自動忽略</span>
                 </div>
 
                 <!-- 篩選 -->
@@ -21328,6 +21289,8 @@ var __async = (__this, __arguments, generator) => {
                     <span class="text-slate-600">|</span>
                     <button onclick="bulkApplyExcelAll()" class="px-3 py-1 rounded-full text-xs font-bold border border-blue-500 text-blue-300 hover:bg-slate-800">⚡ 全部採用 Excel</button>
                     <button onclick="bulkKeepAllOriginal()" class="px-3 py-1 rounded-full text-xs font-bold border border-slate-500 text-slate-300 hover:bg-slate-800">↩ 全部保留原資料</button>
+                    <span class="text-slate-600">|</span>
+                    <button onclick="openDiffReportModal('import')" class="px-3 py-1 rounded-full text-xs font-bold border border-emerald-500 text-emerald-300 hover:bg-slate-800">🖨 匯出比較報告</button>
                 </div>
 
                 <!-- 工項篩選 + 自由文字搜尋 (工項選單會依目前狀態篩選動態限縮選項) -->
@@ -21418,6 +21381,7 @@ var __async = (__this, __arguments, generator) => {
                     <button data-compare-filter="modified" onclick="setCompareFilter('modified')" class="compare-filter-btn px-3 py-1 rounded-full text-xs font-bold border">🟡 修改</button>
                     <button data-compare-filter="removed" onclick="setCompareFilter('removed')" class="compare-filter-btn px-3 py-1 rounded-full text-xs font-bold border">🔴 刪除</button>
                     <button data-compare-filter="same" onclick="setCompareFilter('same')" class="compare-filter-btn px-3 py-1 rounded-full text-xs font-bold border">🟢 相同</button>
+                    <button onclick="openDiffReportModal('compare')" class="ml-auto px-3 py-1 rounded-full text-xs font-bold border border-emerald-500 text-emerald-700 hover:bg-emerald-50">🖨 匯出比較報告</button>
                 </div>
                 <div id="compareListContainer" class="space-y-2"></div>
             </div>
@@ -21445,6 +21409,30 @@ var __async = (__this, __arguments, generator) => {
             <div class="p-4 border-t flex justify-end gap-2">
                 <button onclick="closeStandardDocMergeModal()" class="px-4 py-1.5 rounded text-sm border border-slate-300 hover:bg-slate-50">取消</button>
                 <button onclick="confirmExportStandardDoc()" class="px-4 py-1.5 rounded text-sm bg-emerald-600 text-white hover:bg-emerald-700 font-bold">確認匯出 Word</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 匯出比較報告：勾選要納入的工項後，產生可列印/另存 PDF 的報告 (z-index 高於審核/比較視窗) -->
+    <div id="diffReportModal" class="no-print hidden fixed inset-0 bg-black/60 z-[150] flex items-center justify-center p-4">
+        <div class="bg-white rounded-xl shadow-xl w-full max-w-lg max-h-[88vh] flex flex-col">
+            <div class="p-4 border-b flex items-center justify-between">
+                <h3 class="text-lg font-bold">🖨 匯出比較報告</h3>
+                <button onclick="closeDiffReportModal()" class="text-slate-400 hover:text-slate-700 text-xl leading-none">✕</button>
+            </div>
+            <div class="p-4 border-b text-xs text-slate-500">勾選要納入報告的工項 (僅列出有差異的工項，預設全選)。報告會列出每個差異欄位的原版與進版完整文字，並以橫線區隔。</div>
+            <div class="p-3 border-b flex items-center gap-2">
+                <button onclick="toggleAllDiffReportCategories(true)" class="px-3 py-1 rounded text-xs font-bold border border-slate-300 hover:bg-slate-50">全選</button>
+                <button onclick="toggleAllDiffReportCategories(false)" class="px-3 py-1 rounded text-xs font-bold border border-slate-300 hover:bg-slate-50">全部取消</button>
+            </div>
+            <div id="diffReportCategoryList" class="flex-1 overflow-y-auto p-4 text-sm"></div>
+            <div class="p-3 border-t text-xs text-slate-600 space-y-1">
+                <label class="flex items-center gap-2 cursor-pointer"><input type="checkbox" id="diffReportIncludeSame"> 同時列出「相同(無差異)」的項目</label>
+                <label id="diffReportDecisionRow" class="flex items-center gap-2 cursor-pointer"><input type="checkbox" id="diffReportIncludeDecision" checked> 附上目前的審核決策 (保留原版/採用進版/編輯後採用)</label>
+            </div>
+            <div class="p-4 border-t flex justify-end gap-2">
+                <button onclick="closeDiffReportModal()" class="px-4 py-1.5 rounded text-sm border border-slate-300 hover:bg-slate-50">取消</button>
+                <button onclick="confirmDiffReportExport()" class="px-4 py-1.5 rounded text-sm bg-emerald-600 text-white hover:bg-emerald-700 font-bold">產生報告 (列印 / 另存 PDF)</button>
             </div>
         </div>
     </div>
@@ -21562,7 +21550,6 @@ var __async = (__this, __arguments, generator) => {
             syncToPreview();
             renderPhotos();
 
-            renderOverviewMajorFilterButtons();
             setFlowLayoutOrientation('vertical');
             updateCloudSyncStatusDot();
 
@@ -21758,6 +21745,7 @@ var __async = (__this, __arguments, generator) => {
             }
 
             renderManagementItems(rows);
+            resetSafetyChecks(); // 換工項視為新的一份紀錄表，※安全衛生查驗點勾選一併清空
 
             // 表單編號隨工項自動帶入 (如 E01-0001)，若已設定並啟用雲端同步，會向 Google Sheet
             // 查詢該工項目前已使用之最大流水號，並自動接續 (各工項各自獨立編號)；
@@ -21801,14 +21789,22 @@ var __async = (__this, __arguments, generator) => {
                     headers: { 'Content-Type': 'text/plain;charset=utf-8' },
                     body: JSON.stringify({ action: 'nextFormNo', categoryCode })
                 });
-                const data = await resp.json().catch(() => null);
+                const rawText = await resp.text().catch(() => '');
+                let data = null;
+                try { data = JSON.parse(rawText); } catch (e) { data = null; }
+                console.log('[nextFormNo] HTTP', resp.status, rawText.slice(0, 300));
                 if (requestToken !== formNoRequestCounter) return; // 使用者已切換到別的工項，此結果已過期，忽略
                 if (data && data.success && data.nextNo) {
                     noInput.value = data.nextNo;
                     hint.innerHTML = '<span class="text-emerald-600">✓ 已依雲端試算表紀錄自動接續編號 (本工項獨立編號)</span>';
                 } else {
                     noInput.value = offlineDefault;
-                    hint.textContent = offlineHint + '（雲端查詢未取得結果，已退回預設編號，請自行確認）';
+                    // 把雲端實際回應附在提示後面，方便判斷原因 (非 JSON＝多半是 Google 登入/權限頁；有 message＝程式端錯誤)
+                    let reason;
+                    if (!data) reason = '雲端回應不是 JSON：' + rawText.replace(/\s+/g, ' ').slice(0, 80);
+                    else if (data.success === false) reason = '雲端回報錯誤：' + (data.message || '未知');
+                    else reason = '雲端回應未含 nextNo：' + JSON.stringify(data).slice(0, 80);
+                    hint.textContent = offlineHint + '（' + reason + '）';
                 }
                 syncToPreview();
             } catch (err) {
@@ -22211,7 +22207,17 @@ var __async = (__this, __arguments, generator) => {
          * 由呼叫端 (buildDiffKeyedList) 依出現順序序號區分，確保比對仍是「以內容為準」而非單純位置。
          * --------------------------------------------------------------------------------- */
         function buildDiffKey(row) {
-            return [row.category || '', row.process || '', row.item || ''].join('◆');
+            // 識別鍵一律忽略空白與換行 (全形/半形空白、Tab、換行皆視為不存在)，避免僅因空白差異而配對失敗
+            return [row.category, row.process, row.item].map(normalizeCompareText).join('◆');
+        }
+
+        // 比對用文字正規化：移除所有空白類字元 (半形/全形空白、Tab、換行、不換行空白、零寬字元)。
+        // 依需求「若差異僅是空格、換行等請無視」，僅作比較判斷用，不會改動實際儲存/顯示的原始文字。
+        function normalizeCompareText(str) {
+            // 先做 Unicode NFKC 標準化：全形/半形、相容字元 (長得一樣但編碼不同的字) 視為同一字，再移除空白與零寬字元
+            let t = String(str == null ? '' : str);
+            try { t = t.normalize('NFKC'); } catch (e) { /* 舊瀏覽器不支援則略過 */ }
+            return t.replace(/[\s\u00a0\u3000\u200b\u200c\u200d\ufeff]+/g, '');
         }
 
         // 將資料陣列依 buildDiffKey() 分組，同 key 若重複出現多次，依序附加序號以利逐一配對(仍非位置比對，只是同名去重)
@@ -22254,6 +22260,72 @@ var __async = (__this, __arguments, generator) => {
          * 回傳分類為 相同／修改／新增／刪除 的清單，並附上欄位級差異明細。
          * 這個函式同時供「Excel 匯入審核」與「版本比較」兩處使用。
          * ===================================================================================== */
+        // 逐欄比較兩列資料 (忽略空白與換行)，回傳有差異的欄位清單 (保留原始文字供顯示)
+        function buildFieldDiffs(oldRow, newRow) {
+            return DIFF_FIELD_DEFS
+                .filter(def => normalizeCompareText(oldRow[def.field]) !== normalizeCompareText(newRow[def.field]))
+                .map(def => ({
+                    field: def.field, label: def.label,
+                    oldValue: oldRow[def.field] || '', newValue: newRow[def.field] || '',
+                    decision: 'excel' // 預設採用 Excel(新)資料，使用者可個別或批次改為「保留原資料」
+                }));
+        }
+
+        // 由差異項目清單計算統計與三種差異率 (拆開「疑似改名」配對後可重新呼叫)
+        function computeDiffSummary(items, oldCount, newCount) {
+            const summary = {
+                oldCount, newCount,
+                same: items.filter(i => i.status === 'same').length,
+                modified: items.filter(i => i.status === 'modified').length,
+                added: items.filter(i => i.status === 'added').length,
+                removed: items.filter(i => i.status === 'removed').length
+            };
+            // ①筆數差異率 = |Excel筆數 - 目前筆數| / 目前筆數
+            summary.countDiffRate = oldCount === 0 ? null : Math.abs(newCount - oldCount) / oldCount;
+            // ②資料筆差異率 = (修改+新增+刪除) / 比較基準資料筆數(取目前版本筆數與1的最大值，避免分母為0)
+            summary.recordDiffRate = (summary.modified + summary.added + summary.removed) / Math.max(oldCount, 1);
+            // ③欄位差異率 = 不同欄位數 / 實際比較欄位總數 (僅計「相同」與「修改」項目，因新增/刪除無從逐欄比較)
+            const comparableItems = items.filter(i => i.status === 'same' || i.status === 'modified');
+            const totalFieldsCompared = comparableItems.length * DIFF_FIELD_DEFS.length;
+            const totalFieldsDiff = comparableItems.reduce((sum, i) => sum + i.fieldDiffs.length, 0);
+            summary.fieldDiffRate = totalFieldsCompared === 0 ? 0 : totalFieldsDiff / totalFieldsCompared;
+            return summary;
+        }
+
+        // 字元雙連詞 (bigram) Dice 相似度 (0~1)，用於「疑似改名」配對
+        function bigramDiceSimilarity(a, b) {
+            if (a === b) return a.length > 0 ? 1 : 0;
+            if (a.length < 2 || b.length < 2) return 0;
+            const grams = (str) => { const m = new Map(); for (let i = 0; i < str.length - 1; i++) { const g = str.substr(i, 2); m.set(g, (m.get(g) || 0) + 1); } return m; };
+            const ga = grams(a), gb = grams(b);
+            let inter = 0;
+            ga.forEach((c, g) => { if (gb.has(g)) inter += Math.min(c, gb.get(g)); });
+            return (2 * inter) / ((a.length - 1) + (b.length - 1));
+        }
+
+        // 「管理項目改名」相似度：管理項目文字相近為主；抽查標準完全相同、或施工流程相同時加強
+        const RENAME_MATCH_THRESHOLD = 0.6;
+        function renameSimilarity(oldRow, newRow) {
+            const ni = normalizeCompareText(oldRow.item), nj = normalizeCompareText(newRow.item);
+            let sim = bigramDiceSimilarity(ni, nj);
+            if (ni.length >= 2 && nj.length >= 2 && (ni.includes(nj) || nj.includes(ni))) sim = Math.max(sim, 0.7);
+            const sa = normalizeCompareText(oldRow.standard), sb = normalizeCompareText(newRow.standard);
+            if (sa.length >= 6 && sa === sb) sim = Math.max(sim, 0.7);
+            if (normalizeCompareText(oldRow.process) === normalizeCompareText(newRow.process)) sim = Math.min(1, sim + 0.1);
+            return sim;
+        }
+
+        /* =====================================================================================
+         * 【差異比對引擎】比較 oldRows (目前版本) 與 newRows (Excel/欲比較的另一版本)，
+         * 回傳分類為 相同／修改／新增／刪除 的清單，並附上欄位級差異明細。
+         * 這個函式同時供「Excel 匯入審核」與「版本比較」兩處使用。
+         *
+         * 比較規則 (2026-10 與使用者確認)：
+         *   1. 空白、換行、Tab、全形空白一律忽略 (僅差異於此者視為「相同」)；全形/半形、標點、大小寫仍依字面比對。
+         *   2. 先以「工項＋施工流程＋管理項目」(同樣忽略空白) 精確配對；
+         *   3. 精確配對不到的「刪除」與「新增」，在同一工項內以相似度配對 (見 renameSimilarity)，
+         *      相近者合併為一筆「修改」並標記為「疑似改名」，由使用者確認或拆開。
+         * ===================================================================================== */
         function computeDiff(oldRows, newRows) {
             const oldKeyed = buildDiffKeyedList(oldRows);
             const newKeyed = buildDiffKeyedList(newRows);
@@ -22261,19 +22333,13 @@ var __async = (__this, __arguments, generator) => {
             const newMap = new Map(newKeyed.map(n => [n.key, n.row]));
 
             const allKeys = new Set([...oldMap.keys(), ...newMap.keys()]);
-            const items = [];
+            let items = [];
 
             allKeys.forEach(key => {
                 const oldRow = oldMap.get(key);
                 const newRow = newMap.get(key);
                 if (oldRow && newRow) {
-                    const fieldDiffs = DIFF_FIELD_DEFS
-                        .filter(def => (oldRow[def.field] || '') !== (newRow[def.field] || ''))
-                        .map(def => ({
-                            field: def.field, label: def.label,
-                            oldValue: oldRow[def.field] || '', newValue: newRow[def.field] || '',
-                            decision: 'excel' // 預設採用 Excel(新)資料，使用者可個別或批次改為「保留原資料」
-                        }));
+                    const fieldDiffs = buildFieldDiffs(oldRow, newRow);
                     items.push({
                         key, status: fieldDiffs.length === 0 ? 'same' : 'modified',
                         oldRow, newRow, fieldDiffs, label: newRow.item || oldRow.item || '(未命名項目)',
@@ -22286,25 +22352,35 @@ var __async = (__this, __arguments, generator) => {
                 }
             });
 
-            const summary = {
-                oldCount: oldRows.length, newCount: newRows.length,
-                same: items.filter(i => i.status === 'same').length,
-                modified: items.filter(i => i.status === 'modified').length,
-                added: items.filter(i => i.status === 'added').length,
-                removed: items.filter(i => i.status === 'removed').length
-            };
+            // ---- 疑似改名配對：同一工項內，「刪除」與「新增」相似度夠高者合併為一筆「修改」 ----
+            const removedItems = items.filter(i => i.status === 'removed');
+            const addedItems = items.filter(i => i.status === 'added');
+            if (removedItems.length > 0 && addedItems.length > 0) {
+                const candidates = [];
+                removedItems.forEach(r => addedItems.forEach(a => {
+                    if (normalizeCompareText(r.category) !== normalizeCompareText(a.category)) return;
+                    const score = renameSimilarity(r.oldRow, a.newRow);
+                    if (score >= RENAME_MATCH_THRESHOLD) candidates.push({ r, a, score });
+                }));
+                candidates.sort((x, y) => y.score - x.score);
+                const usedR = new Set(), usedA = new Set();
+                const mergedByRemoved = new Map();
+                candidates.forEach(({ r, a, score }) => {
+                    if (usedR.has(r) || usedA.has(a)) return;
+                    usedR.add(r); usedA.add(a);
+                    const fieldDiffs = buildFieldDiffs(r.oldRow, a.newRow);
+                    mergedByRemoved.set(r, {
+                        key: a.key, status: 'modified',
+                        oldRow: r.oldRow, newRow: a.newRow, fieldDiffs,
+                        label: a.newRow.item || r.oldRow.item || '(未命名項目)',
+                        category: a.newRow.category || r.oldRow.category,
+                        renamePair: { score, confirmed: false, removedItem: r, addedItem: a }
+                    });
+                });
+                items = items.filter(i => !usedA.has(i)).map(i => mergedByRemoved.get(i) || i);
+            }
 
-            // ①筆數差異率 = |Excel筆數 - 目前筆數| / 目前筆數
-            summary.countDiffRate = oldRows.length === 0 ? null : Math.abs(newRows.length - oldRows.length) / oldRows.length;
-            // ②資料筆差異率 = (修改+新增+刪除) / 比較基準資料筆數(取目前版本筆數與Excel筆數的最大值，避免分母為0)
-            const baseCount = Math.max(oldRows.length, 1);
-            summary.recordDiffRate = (summary.modified + summary.added + summary.removed) / baseCount;
-            // ③欄位差異率 = 不同欄位數 / 實際比較欄位總數 (僅計「相同」與「修改」項目，因新增/刪除無從逐欄比較)
-            const comparableItems = items.filter(i => i.status === 'same' || i.status === 'modified');
-            const totalFieldsCompared = comparableItems.length * DIFF_FIELD_DEFS.length;
-            const totalFieldsDiff = comparableItems.reduce((sum, i) => sum + i.fieldDiffs.length, 0);
-            summary.fieldDiffRate = totalFieldsCompared === 0 ? 0 : totalFieldsDiff / totalFieldsCompared;
-
+            const summary = computeDiffSummary(items, oldRows.length, newRows.length);
             return { items, summary };
         }
 
@@ -22551,6 +22627,68 @@ var __async = (__this, __arguments, generator) => {
             return segments;
         }
 
+        // 逐字元差異 (忽略空白/換行)：LCS 僅以「非空白字元」計算，空白與換行一律視為未變更，
+        // 兩側各自回傳「原始完整文字」切成的片段 [{text, changed}]，供左右/上下完整顯示原版與進版全文。
+        function computeCharDiffSides(oldStr, newStr) {
+            const A = Array.from(String(oldStr || '')), B = Array.from(String(newStr || ''));
+            const isWs = (ch) => normalizeCompareText(ch) === '';
+            const nk = (ch) => normalizeCompareText(ch);
+            const eq = (x, y) => x === y || nk(x) === nk(y);
+            const ai = [], bi = [];
+            A.forEach((ch, i) => { if (!isWs(ch)) ai.push(i); });
+            B.forEach((ch, i) => { if (!isWs(ch)) bi.push(i); });
+            const n = ai.length, m = bi.length;
+            if (n * m > 4000000) return null;
+            const dp = new Array(n + 1);
+            for (let i = 0; i <= n; i++) dp[i] = new Uint32Array(m + 1);
+            for (let i = n - 1; i >= 0; i--) {
+                for (let j = m - 1; j >= 0; j--) {
+                    dp[i][j] = eq(A[ai[i]], B[bi[j]]) ? dp[i + 1][j + 1] + 1 : Math.max(dp[i + 1][j], dp[i][j + 1]);
+                }
+            }
+            const aChanged = new Array(A.length).fill(false), bChanged = new Array(B.length).fill(false);
+            let i = 0, j = 0;
+            while (i < n && j < m) {
+                if (eq(A[ai[i]], B[bi[j]])) { i++; j++; }
+                else if (dp[i + 1][j] >= dp[i][j + 1]) { aChanged[ai[i]] = true; i++; }
+                else { bChanged[bi[j]] = true; j++; }
+            }
+            while (i < n) { aChanged[ai[i]] = true; i++; }
+            while (j < m) { bChanged[bi[j]] = true; j++; }
+            const toSegs = (chars, changed) => {
+                const segs = [];
+                chars.forEach((ch, k) => {
+                    const last = segs[segs.length - 1];
+                    if (last && last.changed === changed[k]) last.text += ch; else segs.push({ text: ch, changed: changed[k] });
+                });
+                return segs;
+            };
+            return { oldSegs: toSegs(A, aChanged), newSegs: toSegs(B, bChanged) };
+        }
+
+        // 單側片段 → HTML (changed: 原版側紅底刪除線、進版側綠底底線)，保留原文換行
+        function renderSideSegsHtml(segs, side) {
+            return segs.map(seg => {
+                const text = escapeHtml(seg.text).replace(/\n/g, '<br>');
+                if (!seg.changed) return `<span>${text}</span>`;
+                return side === 'old'
+                    ? `<span class="bg-red-200 text-red-800 line-through decoration-2">${text}</span>`
+                    : `<span class="bg-emerald-200 text-emerald-900 underline decoration-2">${text}</span>`;
+            }).join('');
+        }
+
+        // 取得原版/進版「完整文字」的 HTML (含差異標示)；內容過長無法逐字比對時退回純文字
+        function buildOldNewFullHtml(oldVal, newVal) {
+            oldVal = oldVal || ''; newVal = newVal || '';
+            const sides = computeCharDiffSides(oldVal, newVal);
+            const placeholder = '<span class="text-slate-300">(空白)</span>';
+            let oldHtml = sides ? renderSideSegsHtml(sides.oldSegs, 'old') : escapeHtml(oldVal).replace(/\n/g, '<br>');
+            let newHtml = sides ? renderSideSegsHtml(sides.newSegs, 'new') : escapeHtml(newVal).replace(/\n/g, '<br>');
+            if (!oldVal.trim()) oldHtml = placeholder;
+            if (!newVal.trim()) newHtml = placeholder;
+            return { oldHtml, newHtml };
+        }
+
         // 把差異片段渲染成單一側 (old/new) 的 HTML，未屬於該側的片段 (對方新增/刪除的部分) 不顯示
         function renderDiffSegmentsHtml(segments, side) {
             return segments.map(seg => {
@@ -22572,52 +22710,26 @@ var __async = (__this, __arguments, generator) => {
         // 用於決策面板中的完整對照 (表格儲存格內另有縮小版 buildCompactCellDiffHtml)。
         // labels 可自訂兩側標籤文字 (預設「原資料」／「Excel 資料」；版本比較則傳入「版本 A」／「版本 B」)。
         function buildFieldCompareBlockHtml(oldVal, newVal, labels) {
-            labels = labels || ['原資料', 'Excel 資料'];
-            oldVal = oldVal || ''; newVal = newVal || '';
-            const segments = computeCharDiff(oldVal, newVal);
-            const placeholder = '<span class="text-slate-300">(空白)</span>';
-            let oldHtml, newHtml;
-            if (segments) {
-                oldHtml = renderDiffSegmentsHtml(segments, 'old');
-                newHtml = renderDiffSegmentsHtml(segments, 'new');
-            } else {
-                oldHtml = escapeHtml(oldVal);
-                newHtml = escapeHtml(newVal);
-            }
-            if (!oldHtml || !oldHtml.trim()) oldHtml = placeholder;
-            if (!newHtml || !newHtml.trim()) newHtml = placeholder;
-
-            const stacked = shouldStackFieldCompare(oldVal, newVal);
-            if (stacked) {
-                return `<div class="space-y-1.5 mb-1.5 text-xs">
-                    <div class="bg-slate-100 rounded p-1.5"><div class="text-[10px] text-slate-400 mb-0.5">${escapeHtml(labels[0])}</div><div class="whitespace-pre-wrap leading-relaxed">${oldHtml}</div></div>
-                    <div class="bg-blue-50 rounded p-1.5"><div class="text-[10px] text-slate-400 mb-0.5">${escapeHtml(labels[1])}</div><div class="whitespace-pre-wrap leading-relaxed">${newHtml}</div></div>
-                </div>`;
-            }
-            return `<div class="grid grid-cols-2 gap-2 text-xs mb-1.5">
-                <div class="bg-slate-100 rounded p-1.5"><div class="text-[10px] text-slate-400 mb-0.5">${escapeHtml(labels[0])}</div><div class="whitespace-pre-wrap">${oldHtml}</div></div>
-                <div class="bg-blue-50 rounded p-1.5"><div class="text-[10px] text-slate-400 mb-0.5">${escapeHtml(labels[1])}</div><div class="whitespace-pre-wrap">${newHtml}</div></div>
+            labels = labels || ['原版', '進版'];
+            const { oldHtml, newHtml } = buildOldNewFullHtml(oldVal, newVal);
+            // 原版在上、進版在下，中間以橫線區隔，兩者皆顯示完整文字
+            return `<div class="text-xs mb-1.5 rounded border border-slate-200 overflow-hidden">
+                <div class="bg-slate-100 p-1.5"><div class="text-[10px] font-bold text-slate-500 mb-0.5">${escapeHtml(labels[0])}</div><div class="whitespace-pre-wrap leading-relaxed">${oldHtml}</div></div>
+                <div class="border-t-2 border-slate-500"></div>
+                <div class="bg-blue-50 p-1.5"><div class="text-[10px] font-bold text-blue-600 mb-0.5">${escapeHtml(labels[1])}</div><div class="whitespace-pre-wrap leading-relaxed">${newHtml}</div></div>
             </div>`;
         }
 
         // 表格儲存格用的「縮小版」逐字元對照：舊/新兩行小字疊放，超過 2 行以刪節號截斷 (完整內容見 title 提示或展開決策面板)
         function buildCompactCellDiffHtml(oldVal, newVal) {
-            oldVal = oldVal || ''; newVal = newVal || '';
-            const segments = computeCharDiff(oldVal, newVal);
-            const placeholder = '<span class="text-slate-300">(空白)</span>';
-            let oldHtml, newHtml;
-            if (segments) {
-                oldHtml = renderDiffSegmentsHtml(segments, 'old');
-                newHtml = renderDiffSegmentsHtml(segments, 'new');
-            } else {
-                oldHtml = escapeHtml(oldVal);
-                newHtml = escapeHtml(newVal);
-            }
-            if (!oldHtml || !oldHtml.trim()) oldHtml = placeholder;
-            if (!newHtml || !newHtml.trim()) newHtml = placeholder;
-            return `<div class="text-[10px] leading-snug space-y-0.5">
-                <div class="diff-cell-clamp" title="${escapeAttr(oldVal)}">${oldHtml}</div>
-                <div class="diff-cell-clamp" title="${escapeAttr(newVal)}">${newHtml}</div>
+            const { oldHtml, newHtml } = buildOldNewFullHtml(oldVal, newVal);
+            // 表格儲存格內：原版完整文字在上、橫線區隔、進版完整文字在下 (不截斷)
+            return `<div class="text-[11px] leading-snug">
+                <div class="text-[9px] font-bold text-slate-400">原版</div>
+                <div class="whitespace-pre-wrap break-words">${oldHtml}</div>
+                <div class="border-t-2 border-slate-500 my-1.5"></div>
+                <div class="text-[9px] font-bold text-blue-500">進版</div>
+                <div class="whitespace-pre-wrap break-words">${newHtml}</div>
             </div>`;
         }
 
@@ -22691,7 +22803,7 @@ var __async = (__this, __arguments, generator) => {
             const cellsHtml = columns.map(col => {
                 if (modifiedFieldMap[col.field]) {
                     const fd = modifiedFieldMap[col.field];
-                    return `<td class="align-top p-2 border-b border-r border-slate-100 bg-amber-50/70 min-w-[160px]">
+                    return `<td class="align-top p-2 border-b border-r border-slate-100 bg-amber-50/70 min-w-[200px]">
                         ${buildCompactCellDiffHtml(fd.oldValue, fd.newValue)}
                         ${buildFieldDecisionBadgeHtml(fd.decision)}
                     </td>`;
@@ -22701,7 +22813,10 @@ var __async = (__this, __arguments, generator) => {
             }).join('');
 
             const expandHint = isExpanded ? '<div class="text-[10px] text-indigo-500 mt-0.5">▲ 收合</div>' : '<div class="text-[10px] text-slate-400 mt-0.5">▼ 展開</div>';
-            const statusCellHtml = `<td class="align-top p-2 border-b border-r border-slate-100 text-center whitespace-nowrap">${STATUS_BADGES[item.status]}${expandHint}</td>`;
+            const renameBadge = item.renamePair
+                ? (item.renamePair.confirmed ? '<div class="mt-1 text-[9px] font-bold text-emerald-600">✓ 改名已確認</div>' : '<div class="mt-1 text-[9px] font-black text-purple-600">❓ 疑似改名</div>')
+                : '';
+            const statusCellHtml = `<td class="align-top p-2 border-b border-r border-slate-100 text-center whitespace-nowrap">${STATUS_BADGES[item.status]}${renameBadge}${expandHint}</td>`;
 
             const tr = `<tr class="${rowClass}" onclick="toggleDiffRowExpand(${realIdx})">${statusCellHtml}${cellsHtml}</tr>`;
             const panelHtml = isExpanded ? buildDiffExpandPanelHtml(item, realIdx, columns) : '';
@@ -22763,7 +22878,210 @@ var __async = (__this, __arguments, generator) => {
                 </td>`;
             }).join('');
 
-            return `<tr>${labelTd}${decisionCellsHtml}</tr>`;
+            let renameBanner = '';
+            if (item.renamePair) {
+                const rp = item.renamePair;
+                renameBanner = `<tr><td colspan="${colspan}" class="bg-purple-50 border-b border-purple-200 p-2.5 text-xs text-purple-900">
+                    <div class="flex items-center flex-wrap gap-2">
+                        <span class="font-bold">❓ 系統判斷這筆可能是「改名」（相似度 ${Math.round(rp.score * 100)}%）：</span>
+                        <span>原「${escapeHtml(item.oldRow.item)}」→ 進「${escapeHtml(item.newRow.item)}」</span>
+                        <button onclick="event.stopPropagation(); confirmRenamePair(${realIdx})" class="px-2 py-1 rounded text-[11px] font-bold border ${rp.confirmed ? 'bg-emerald-600 text-white border-emerald-600' : 'bg-white border-purple-300 hover:bg-purple-100'}">${rp.confirmed ? '✓ 已確認為同一筆' : '✓ 確認為同一筆 (改名)'}</button>
+                        <button onclick="event.stopPropagation(); splitRenamePair(${realIdx})" class="px-2 py-1 rounded text-[11px] font-bold border bg-white border-purple-300 hover:bg-purple-100">✂ 拆開為「刪除 + 新增」</button>
+                    </div></td></tr>`;
+            }
+            return `${renameBanner}<tr>${labelTd}${decisionCellsHtml}</tr>`;
+        }
+
+        /* =====================================================================================
+         * 【匯出比較報告 (網頁列印／另存 PDF)】
+         * 來源：匯入審核 (diffState) 或版本比較 (compareState)。使用者可勾選要納入的工項，
+         * 報告內每個有差異的管理項目逐欄列出「原版完整文字」─橫線─「進版完整文字」(含差異標示)；
+         * 匯入審核模式另附各欄位目前的審核決策。以隱藏 iframe 載入獨立 HTML 後呼叫列印，
+         * 不影響畫面上的任何內容。
+         * ===================================================================================== */
+        let diffReportSource = null;
+
+        function openDiffReportModal(sourceType) {
+            let src = null;
+            if (sourceType === 'import' && diffState) {
+                const cv = getCurrentVersion();
+                src = {
+                    type: 'import', items: diffState.items, summary: diffState.summary,
+                    title: 'Excel 匯入差異比較報告',
+                    oldLabel: `原版：${cv ? cv.versionName : '目前版本'}`,
+                    newLabel: `進版：${pendingImport ? pendingImport.fileName : 'Excel'}`
+                };
+            } else if (sourceType === 'compare' && compareState) {
+                src = {
+                    type: 'compare', items: compareState.items, summary: compareState.summary,
+                    title: '版本差異比較報告',
+                    oldLabel: `原版：${compareState.vA.versionName}`,
+                    newLabel: `進版：${compareState.vB.versionName}`
+                };
+            }
+            if (!src) { alert('請先完成比較後再匯出報告。'); return; }
+            diffReportSource = src;
+
+            // 只列出「有差異」(修改/新增/刪除) 的工項，附各狀態筆數；預設全選
+            const catMap = new Map();
+            src.items.forEach(it => {
+                const cat = it.category || '(未分類)';
+                if (!catMap.has(cat)) catMap.set(cat, { modified: 0, added: 0, removed: 0, same: 0 });
+                catMap.get(cat)[it.status]++;
+            });
+            const rows = Array.from(catMap.entries()).filter(([, c]) => c.modified + c.added + c.removed > 0);
+            document.getElementById('diffReportCategoryList').innerHTML = rows.length === 0
+                ? '<div class="text-sm text-slate-400 py-4 text-center">兩份資料沒有任何差異，無需匯出報告。</div>'
+                : rows.map(([cat, c]) => `
+                    <label class="flex items-center gap-2 py-1 cursor-pointer">
+                        <input type="checkbox" class="diff-report-cat-chk" value="${escapeAttr(cat)}" checked>
+                        <span class="flex-1">${escapeHtml(cat)}</span>
+                        <span class="text-xs text-slate-400">修改 ${c.modified}　新增 ${c.added}　刪除 ${c.removed}</span>
+                    </label>`).join('');
+            document.getElementById('diffReportDecisionRow').classList.toggle('hidden', src.type !== 'import');
+            document.getElementById('diffReportIncludeSame').checked = false;
+            document.getElementById('diffReportModal').classList.remove('hidden');
+        }
+
+        function closeDiffReportModal() {
+            document.getElementById('diffReportModal').classList.add('hidden');
+        }
+
+        function toggleAllDiffReportCategories(checked) {
+            document.querySelectorAll('.diff-report-cat-chk').forEach(c => c.checked = checked);
+        }
+
+        // 報告中的差異標示以行內樣式呈現 (獨立 HTML 不依賴 Tailwind)
+        function reportSegsHtml(segs, side) {
+            return segs.map(seg => {
+                const text = escapeHtml(seg.text).replace(/\n/g, '<br>');
+                if (!seg.changed) return text;
+                return side === 'old'
+                    ? `<span style="background:#fecaca;color:#991b1b;text-decoration:line-through;">${text}</span>`
+                    : `<span style="background:#bbf7d0;color:#14532d;text-decoration:underline;">${text}</span>`;
+            }).join('');
+        }
+
+        function reportFullTextHtml(oldVal, newVal) {
+            oldVal = oldVal || ''; newVal = newVal || '';
+            const sides = computeCharDiffSides(oldVal, newVal);
+            const empty = '<span style="color:#94a3b8;">(空白)</span>';
+            const o = !oldVal.trim() ? empty : (sides ? reportSegsHtml(sides.oldSegs, 'old') : escapeHtml(oldVal).replace(/\n/g, '<br>'));
+            const n = !newVal.trim() ? empty : (sides ? reportSegsHtml(sides.newSegs, 'new') : escapeHtml(newVal).replace(/\n/g, '<br>'));
+            return `<div style="color:#64748b;font-size:10px;font-weight:bold;">原版</div><div>${o}</div>
+                <div style="border-top:2px solid #334155;margin:6px 0;"></div>
+                <div style="color:#2563eb;font-size:10px;font-weight:bold;">進版</div><div>${n}</div>`;
+        }
+
+        function reportDecisionText(fd) {
+            if (fd.decision === 'keep') return '保留原版';
+            if (fd.decision === 'edited') return '編輯後採用：' + (fd.customValue || '');
+            return '採用進版';
+        }
+
+        function buildDiffReportHtml(src, selectedCats, opts) {
+            const statusText = { modified: '修改', added: '新增', removed: '刪除', same: '相同' };
+            const statusColor = { modified: '#b45309', added: '#0369a1', removed: '#b91c1c', same: '#15803d' };
+            const picked = src.items.filter(it => selectedCats.has(it.category || '(未分類)') && (opts.includeSame || it.status !== 'same'));
+            const cnt = (st) => picked.filter(i => i.status === st).length;
+
+            const groups = groupDiffItemsByCategory(picked);
+            const th = 'border:1px solid #475569;padding:4px 6px;background:#e2e8f0;text-align:left;font-size:11px;';
+            const td = 'border:1px solid #475569;padding:5px 7px;vertical-align:top;font-size:12px;line-height:1.5;';
+
+            const itemHtml = (it) => {
+                const renameNote = it.renamePair ? `<span style="color:#7c3aed;font-size:11px;">（疑似改名${it.renamePair.confirmed ? '，已確認' : ''}）</span>` : '';
+                const head = `<div style="font-weight:bold;font-size:13px;margin:10px 0 4px;"><span style="color:${statusColor[it.status]};">【${statusText[it.status]}】</span>管理項目：${escapeHtml(it.label || '')}${renameNote}</div>`;
+                let rows = '';
+                const showDecision = opts.includeDecision && src.type === 'import';
+                if (it.status === 'modified') {
+                    rows = it.fieldDiffs.map(fd => `<tr>
+                        <td style="${td}width:90px;font-weight:bold;">${escapeHtml(fd.label)}</td>
+                        <td style="${td}">${reportFullTextHtml(fd.oldValue, fd.newValue)}</td>
+                        ${showDecision ? `<td style="${td}width:110px;">${escapeHtml(reportDecisionText(fd))}</td>` : ''}
+                    </tr>`).join('');
+                } else {
+                    const row = it.status === 'added' ? it.newRow : it.oldRow;
+                    const sideLabel = it.status === 'added' ? '進版' : '原版';
+                    const color = it.status === 'added' ? '#2563eb' : '#64748b';
+                    const defs = DIFF_FIELD_DEFS.filter(d => d.field !== 'category' && (row[d.field] || '').trim() !== '');
+                    const decisionLabel = it.status === 'added'
+                        ? (it.decision === 'include' ? '加入新版本' : '不採用')
+                        : (it.decision === 'keep' ? '保留 (不刪除)' : '確認刪除');
+                    rows = defs.map((d, i) => `<tr>
+                        <td style="${td}width:90px;font-weight:bold;">${escapeHtml(d.label)}</td>
+                        <td style="${td}"><div style="color:${color};font-size:10px;font-weight:bold;">${sideLabel}</div><div>${escapeHtml(row[d.field]).replace(/\n/g, '<br>')}</div></td>
+                        ${showDecision && i === 0 ? `<td style="${td}width:110px;" rowspan="${defs.length}">${decisionLabel}</td>` : ''}
+                    </tr>`).join('');
+                }
+                if (it.status === 'same') rows = `<tr><td style="${td}" colspan="3">兩版內容一致</td></tr>`;
+                const showDecisionHeader = opts.includeDecision && src.type === 'import' && it.status !== 'same';
+                return `<div style="page-break-inside:avoid;">${head}
+                    <table style="width:100%;border-collapse:collapse;table-layout:fixed;">
+                        <thead><tr><th style="${th}width:90px;">欄位</th><th style="${th}">內容 (原版 / 進版完整文字)</th>${showDecisionHeader ? `<th style="${th}width:110px;">審核決策</th>` : ''}</tr></thead>
+                        <tbody>${rows}</tbody></table></div>`;
+            };
+
+            const body = groups.map(g => `
+                <h2 style="font-size:15px;border-bottom:2px solid #0f172a;padding-bottom:3px;margin:22px 0 4px;">📂 ${escapeHtml(g.category)}</h2>
+                ${g.items.map(itemHtml).join('')}`).join('');
+
+            const now = new Date();
+            const dateStr = `${now.getFullYear()}/${String(now.getMonth() + 1).padStart(2, '0')}/${String(now.getDate()).padStart(2, '0')} ${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+            return `<!DOCTYPE html><html lang="zh-Hant"><head><meta charset="utf-8"><title>${escapeHtml(src.title)}</title>
+                <style>
+                    @page { size: A4; margin: 14mm; }
+                    body { font-family: 'Microsoft JhengHei','微軟正黑體','Noto Sans TC',sans-serif; color:#0f172a; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+                    h1 { font-size: 20px; margin: 0 0 6px; }
+                </style></head><body>
+                <h1>${escapeHtml(src.title)}</h1>
+                <div style="font-size:12px;line-height:1.7;">
+                    <div>${escapeHtml(src.oldLabel)}　→　${escapeHtml(src.newLabel)}</div>
+                    <div>報告產生時間：${dateStr}　｜　納入工項：${groups.length} 項</div>
+                    <div>🟡 修改 ${cnt('modified')}　🔵 新增 ${cnt('added')}　🔴 刪除 ${cnt('removed')}${opts.includeSame ? `　🟢 相同 ${cnt('same')}` : ''}　（空白、換行、全形半形與相容字元差異已自動忽略）</div>
+                    <div style="margin-top:4px;">圖例：<span style="background:#fecaca;color:#991b1b;text-decoration:line-through;">原版被刪除/改掉的文字</span>　<span style="background:#bbf7d0;color:#14532d;text-decoration:underline;">進版新增/改後的文字</span></div>
+                </div>
+                ${body || '<p>所選工項沒有可列出的差異。</p>'}
+                </body></html>`;
+        }
+
+        function confirmDiffReportExport() {
+            if (!diffReportSource) return;
+            const selected = new Set(Array.from(document.querySelectorAll('.diff-report-cat-chk')).filter(c => c.checked).map(c => c.value));
+            if (selected.size === 0) { alert('請至少勾選一個工項。'); return; }
+            const html = buildDiffReportHtml(diffReportSource, selected, {
+                includeSame: document.getElementById('diffReportIncludeSame').checked,
+                includeDecision: document.getElementById('diffReportIncludeDecision').checked
+            });
+            closeDiffReportModal();
+            const iframe = document.createElement('iframe');
+            iframe.style.cssText = 'position:fixed;right:0;bottom:0;width:0;height:0;border:0;';
+            document.body.appendChild(iframe);
+            const doc = iframe.contentDocument;
+            doc.open(); doc.write(html); doc.close();
+            setTimeout(() => {
+                iframe.contentWindow.focus();
+                iframe.contentWindow.print();
+                setTimeout(() => iframe.remove(), 3000);
+            }, 300);
+        }
+
+        // ---- 疑似改名：確認為同一筆 / 拆開為「刪除＋新增」 ----
+        function confirmRenamePair(realIdx) {
+            const it = diffState.items[realIdx];
+            if (it && it.renamePair) it.renamePair.confirmed = true;
+            renderDiffList();
+        }
+
+        function splitRenamePair(realIdx) {
+            const it = diffState.items[realIdx];
+            if (!it || !it.renamePair) return;
+            const { removedItem, addedItem } = it.renamePair;
+            diffState.items.splice(realIdx, 1, removedItem, addedItem);
+            diffState.summary = computeDiffSummary(diffState.items, diffState.summary.oldCount, diffState.summary.newCount);
+            diffState.expandedIdx = null;
+            renderDiffDashboard();
+            renderDiffList();
         }
 
         // 點擊表格列：手風琴展開/收合該列的決策面板 (一次只能展開一列)
@@ -23359,7 +23677,7 @@ var __async = (__this, __arguments, generator) => {
                 ${renderCategoryGroupHeaderHtml(g.category)}
                 <div class="space-y-2">${g.items.map(item => {
                     const header = `<div class="flex items-center justify-between mb-1.5">
-                        <div class="text-sm font-bold">管理項目：${escapeHtml(item.label || '')}</div>
+                        <div class="text-sm font-bold">管理項目：${escapeHtml(item.label || '')}${item.renamePair ? ' <span class="text-[10px] font-black text-purple-600">❓ 疑似改名</span>' : ''}</div>
                         ${STATUS_BADGES[item.status]}
                     </div>`;
                     if (item.status === 'same') {
@@ -23478,7 +23796,19 @@ var __async = (__this, __arguments, generator) => {
                     cell(row.standard), cell(row.actual), cell(row.result), cell(row.note)
                 ]
             }));
-            const detailTable = new Table({ width: { size: 100, type: WidthType.PERCENTAGE }, rows: [detailHeaderRow, ...detailRows] });
+            // ---- 固定列：※安全衛生查驗點 (左側三欄合併、抽查標準固定文字、實際抽查情形欄為四個勾選共 4 小列) ----
+            const safetyState = readSafetyChecks();
+            const safetyRows = SAFETY_CHECK_FIELDS.map((f, i) => new TableRow({
+                cantSplit: true,
+                children: [
+                    ...(i === 0 ? [
+                        cell('※安全衛生查驗點', { bold: true, colSpan: 3, rowSpan: 4 }),
+                        cell(SAFETY_CHECK_STANDARD_TEXT, { rowSpan: 4 })
+                    ] : []),
+                    cell(`${safetyState[f.key] ? '☑' : '☐'}${f.label}`), cell(''), cell('')
+                ]
+            }));
+            const detailTable = new Table({ width: { size: 100, type: WidthType.PERCENTAGE }, rows: [detailHeaderRow, ...detailRows, ...safetyRows] });
 
             // ---- 備註與簽章區塊 ----
             const remarkParagraph = multilineParagraph(
@@ -23609,6 +23939,23 @@ var __async = (__this, __arguments, generator) => {
             updateMergeListCountUI();
         }
 
+        // ※安全衛生查驗點固定列：施工前／施工中／施工後／不定期 四個勾選
+        const SAFETY_CHECK_STANDARD_TEXT = '檢視承攬廠商安全衛生自動檢查表單填報情形及填具施工安全衛生抽查紀錄表';
+        const SAFETY_CHECK_FIELDS = [
+            { key: 'before', id: 'safety_chk_before', label: '施工前' },
+            { key: 'during', id: 'safety_chk_during', label: '施工中' },
+            { key: 'after',  id: 'safety_chk_after',  label: '施工後' },
+            { key: 'adhoc',  id: 'safety_chk_adhoc',  label: '不定期' }
+        ];
+        function readSafetyChecks() {
+            const r = {};
+            SAFETY_CHECK_FIELDS.forEach(f => { const el = document.getElementById(f.id); r[f.key] = !!(el && el.checked); });
+            return r;
+        }
+        function resetSafetyChecks() {
+            SAFETY_CHECK_FIELDS.forEach(f => { const el = document.getElementById(f.id); if (el) el.checked = false; });
+        }
+
         function buildCurrentRecordSnapshot() {
             const subProject = document.getElementById('subProjectSelect').value;
             const subProjectLabel = subProject === '__CUSTOM__' ? '自訂項目' : subProject;
@@ -23624,6 +23971,7 @@ var __async = (__this, __arguments, generator) => {
                 dateText: document.getElementById('pv_date').innerText,
                 proofDoc: document.getElementById('in_proofDoc').value,
                 items: scrapeCurrentItemsFromDOM(),
+                safety: readSafetyChecks(),
                 photos: photos.map(p => ({ id: p.id, dataUrl: p.dataUrl, desc: p.desc }))
             };
         }
@@ -23906,6 +24254,11 @@ var __async = (__this, __arguments, generator) => {
             try { updatePhotoDesc(photoId, el.value); } finally { mobileWriteThrough = false; }
         }
 
+        function mobileSafetyChange(id, checked) {
+            const el = document.getElementById(id);
+            if (el) el.checked = checked;
+        }
+
         function mobileChangeCategory(value) {
             document.getElementById('subProjectSelect').value = value;
             onSubProjectChange();
@@ -24025,6 +24378,15 @@ var __async = (__this, __arguments, generator) => {
                     <div class="text-sm font-bold text-slate-600 mb-2 px-1">管理項目（共 ${(record.items || []).length} 項）</div>
                     ${itemsHtml || '<div class="text-xs text-slate-400 px-1 mb-3">（尚無管理項目）</div>'}
                     <button type="button" onclick="addManagementItemRow()" class="w-full bg-slate-700 text-white py-3 rounded-lg text-sm font-medium mb-4">＋ 新增自訂抽查項目</button>
+
+                    <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-3 mb-4">
+                        <div class="text-base font-bold mb-1">※安全衛生查驗點</div>
+                        <div class="text-xs text-slate-600 mb-2">${escapeHtml(SAFETY_CHECK_STANDARD_TEXT)}</div>
+                        <div class="grid grid-cols-2 gap-2">
+                            ${SAFETY_CHECK_FIELDS.map(f => `<label class="flex items-center gap-2 border border-slate-300 rounded-lg p-3 text-base">
+                                <input type="checkbox" class="w-5 h-5" ${record.safety && record.safety[f.key] ? 'checked' : ''} onchange="mobileSafetyChange('${f.id}', this.checked)"> ${f.label}</label>`).join('')}
+                        </div>
+                    </div>
 
                     <div class="text-sm font-bold text-slate-600 mb-2 px-1">現場照片（${(record.photos || []).length} 張）</div>
                     <div class="flex gap-2 mb-3">
@@ -24161,6 +24523,18 @@ var __async = (__this, __arguments, generator) => {
 
         // 依單筆紀錄表快照(record)，產生一個完整的靜態列印頁面 HTML (不含任何可編輯的 input/textarea)
         // 內容結構與畫面上單筆表單的 #printArea 一致，供合併列印使用。
+        // 合併列印/快照用的「※安全衛生查驗點」固定列 (勾選狀態唯讀顯示)
+        function buildSafetyRowsHtml(safety) {
+            const sf = safety || {};
+            const box = (f) => `<label><input type="checkbox" disabled ${sf[f.key] ? 'checked' : ''}> ${f.label}</label>`;
+            return SAFETY_CHECK_FIELDS.map((f, i) => `
+                <tr>
+                    ${i === 0 ? `<td colspan="3" rowspan="4" class="text-center font-bold text-xs" style="vertical-align:middle;">※安全衛生查驗點</td>
+                    <td rowspan="4" class="auto-wrap text-xs" style="vertical-align:middle;">${escapeHtml(SAFETY_CHECK_STANDARD_TEXT)}</td>` : ''}
+                    <td class="text-xs">${box(f)}</td><td></td><td></td>
+                </tr>`).join('');
+        }
+
         function buildRecordPrintHTML(record) {
             const itemsRowsHtml = record.items.map(row => `
                 <tr>
@@ -24244,6 +24618,7 @@ var __async = (__this, __arguments, generator) => {
                         </tr>
                     </thead>
                     <tbody>${itemsRowsHtml}</tbody>
+                    <tbody>${buildSafetyRowsHtml(record.safety)}</tbody>
                 </table>
 
                 <div class="remark-block">
@@ -24339,72 +24714,6 @@ var __async = (__this, __arguments, generator) => {
             });
         }
 
-        // 總覽預覽專用大類篩選，不影響紀錄表分頁目前的篩選狀態。
-        let overviewMajorFilter = 'ALL';
-
-        function renderOverviewMajorFilterButtons() {
-            const container = document.getElementById('overviewMajorFilterButtons');
-            if (!container) return;
-            container.innerHTML = '';
-
-            // 與「紀錄表」完全相同的篩選邏輯與按鈕格式：依標準資料庫的編號前綴統計分項工程數量。
-            const countByMajor = {};
-            MAJOR_CATEGORIES.forEach(m => countByMajor[m.code] = new Set());
-            standardDatabase.forEach(row => {
-                const major = getMajorCodeForRow(row);
-                if (!countByMajor[major]) countByMajor[major] = new Set();
-                countByMajor[major].add(row.category);
-            });
-
-            const allBtn = document.createElement('button');
-            const allCount = new Set(standardDatabase.map(r => r.category)).size;
-            allBtn.type = 'button';
-            allBtn.onclick = () => { overviewMajorFilter = 'ALL'; renderOverviewMajorFilterButtons(); populateOverviewSubProjectDropdown(); };
-            allBtn.className = overviewMajorFilter === 'ALL'
-                ? 'px-2.5 py-1 rounded-full text-xs font-medium bg-blue-600 text-white transition'
-                : 'px-2.5 py-1 rounded-full text-xs font-medium bg-slate-100 text-slate-700 hover:bg-slate-200 transition';
-            allBtn.innerHTML = `全部 <span class="ml-0.5 px-1.5 rounded-full ${overviewMajorFilter === 'ALL' ? 'bg-blue-400' : 'bg-slate-300'} text-[10px]">${allCount}</span>`;
-            container.appendChild(allBtn);
-
-            MAJOR_CATEGORIES.forEach(m => {
-                const count = countByMajor[m.code] ? countByMajor[m.code].size : 0;
-                const btn = document.createElement('button');
-                const isActive = overviewMajorFilter === m.code;
-                btn.type = 'button';
-                btn.onclick = () => { overviewMajorFilter = m.code; renderOverviewMajorFilterButtons(); populateOverviewSubProjectDropdown(); };
-                btn.className = isActive
-                    ? 'px-2.5 py-1 rounded-full text-xs font-medium bg-blue-600 text-white transition'
-                    : 'px-2.5 py-1 rounded-full text-xs font-medium bg-slate-100 text-slate-700 hover:bg-slate-200 transition';
-                btn.innerHTML = `${escapeHtml(m.code + m.label)} <span class="ml-0.5 px-1.5 rounded-full ${isActive ? 'bg-blue-400' : 'bg-slate-300'} text-[10px]">${count}</span>`;
-                container.appendChild(btn);
-            });
-        }
-
-        // 【比照紀錄表分頁處理】總覽預覽的「選擇分項工程」下拉選單改為與紀錄表 buildSubProjectOptions() 完全相同的
-        // 分組依據：依「分項工程 (category)」名稱列出選項 (而非先前的「編號 code」，因為同一分項工程底下可能對應
-        // 多筆不同編號的資料列，用編號分組會讓同一個分項工程被拆成好幾個選項，選不到使用者預期的那一項)。
-        function populateOverviewSubProjectDropdown() {
-            const dropdown = document.getElementById('overviewSubProjectSelect');
-            if (!dropdown) return;
-            const previous = dropdown.value;
-
-            const filteredRows = overviewMajorFilter === 'ALL'
-                ? standardDatabase
-                : standardDatabase.filter(r => getMajorCodeForRow(r) === overviewMajorFilter);
-            const categories = [...new Set(filteredRows.map(r => r.category).filter(Boolean))];
-
-            dropdown.innerHTML = '';
-            categories.forEach(cat => {
-                const opt = document.createElement('option');
-                opt.value = cat;
-                opt.textContent = cat;
-                dropdown.appendChild(opt);
-            });
-            if (categories.includes(previous)) dropdown.value = previous;
-            else if (categories.length) dropdown.value = categories[0];
-            renderOverviewPreview();
-        }
-
         // 依 standardDatabase 自動建立程序表合併列印清單：全部分項工程預設納入。
         function initializeFlowMergeListFromDatabase() {
             const keys = Object.keys(flowProjectDataMap);
@@ -24443,8 +24752,6 @@ var __async = (__this, __arguments, generator) => {
                 });
                 if (keys.includes(prevVal)) dropdown.value = prevVal;
             }
-            renderOverviewMajorFilterButtons();
-            populateOverviewSubProjectDropdown();
             if (keys.length > 0) {
                 switchFlowSubProject(dropdown ? dropdown.value : keys[0]);
             }
@@ -24606,6 +24913,103 @@ var __async = (__this, __arguments, generator) => {
         }
 
         /* =====================================================================================
+         * 【橫式程序圖：比照官方範例樣式】
+         * 單一橫列由左至右：第一個步驟為圓角端點 (膠囊)、一般步驟為方框、有★/※ 者為菱形 (★/※ 標示於菱形正上方)，
+         * 最後固定補上「完成」端點；下方以雙向尺寸線標示「施工前／施工中／施工後」範圍，階段交界以虛線垂直貫穿。
+         * 全部使用行內樣式 (不依賴 Tailwind)，因此畫面、列印、合併列印、SVG 匯出皆可正確呈現。
+         * ===================================================================================== */
+        function flowHorizontalOrderedNodes(nodes) {
+            const ordered = [];
+            ['施工前', '施工中', '施工後'].forEach(st => {
+                nodes.filter(n => n.stage === st).forEach(n => ordered.push({ ...n }));
+            });
+            if (ordered.length === 0) return ordered;
+            ordered.push({ id: '__end', stage: ordered[ordered.length - 1].stage, title: '完成', isStar: false, isWarn: false });
+            ordered.forEach((n, i) => {
+                n.kind = (i === 0 || i === ordered.length - 1) ? 'terminator' : ((n.isStar || n.isWarn) ? 'diamond' : 'rect');
+                n.marker = (n.isStar ? '★' : '') + (n.isWarn ? '※' : '');
+            });
+            return ordered;
+        }
+
+        function buildOfficialHorizontalFlowElement(nodes) {
+            const outer = document.createElement('div');
+            outer.style.cssText = 'overflow-x:auto;width:100%;';
+            const ordered = flowHorizontalOrderedNodes(nodes);
+            if (ordered.length === 0) return outer;
+
+            const compact = ordered.length > 6;
+            const dense = ordered.length > 8;   // 步驟很多時再縮小，盡量讓整張圖落在同一頁寬度內
+            const fs = dense ? 10 : (compact ? 11 : 13);
+            const nodeMinW = dense ? 56 : (compact ? 76 : 104);
+            const arrowMin = dense ? 12 : (compact ? 18 : 32);
+            const dW = dense ? 88 : (compact ? 104 : 124), dH = dense ? 68 : (compact ? 76 : 90);
+            const boxPadX = dense ? 6 : 12;
+
+            const cols = [];
+            ordered.forEach((n, i) => {
+                cols.push('auto');
+                if (i < ordered.length - 1) cols.push(`minmax(${arrowMin}px, 1fr)`);
+            });
+
+            const grid = document.createElement('div');
+            grid.style.cssText = `display:grid;grid-template-columns:${cols.join(' ')};grid-template-rows:auto 92px;width:100%;min-width:fit-content;padding:30px 8px 4px 8px;box-sizing:border-box;font-family:'Noto Serif TC','標楷體',serif;color:#000;`;
+
+            // 階段範圍 (依序號) → 虛線貫穿的欄位
+            const stageRanges = [];
+            ['施工前', '施工中', '施工後'].forEach(st => {
+                const idxs = ordered.map((n, i) => n.stage === st ? i : -1).filter(i => i >= 0);
+                if (idxs.length) stageRanges.push({ name: st, first: idxs[0], last: idxs[idxs.length - 1] });
+            });
+            stageRanges.forEach((r, si) => {
+                const startCol = r.first === 0 ? 1 : 2 * r.first;        // 含前一個箭頭欄
+                const endCol = 2 * r.last + 1;                            // 該階段最後一個步驟欄
+                const cell = document.createElement('div');
+                cell.style.cssText = `grid-column:${startCol} / ${endCol + 1};grid-row:1 / 3;display:flex;flex-direction:column;justify-content:flex-end;border-right:1px dashed #000;${si === 0 ? 'border-left:1px dashed #000;' : ''}z-index:0;`;
+                cell.innerHTML = `
+                    <div style="padding:0 0 6px 0;">
+                        <div style="position:relative;height:0;border-top:1.5px solid #000;margin:0 0 7px 0;">
+                            <span style="position:absolute;left:0;top:-5.5px;width:0;height:0;border-right:9px solid #000;border-top:5px solid transparent;border-bottom:5px solid transparent;"></span>
+                            <span style="position:absolute;right:0;top:-5.5px;width:0;height:0;border-left:9px solid #000;border-top:5px solid transparent;border-bottom:5px solid transparent;"></span>
+                        </div>
+                        <div style="text-align:center;font-size:${fs + 1}px;letter-spacing:2px;">${escapeHtml(r.name)}</div>
+                    </div>`;
+                grid.appendChild(cell);
+            });
+
+            ordered.forEach((n, i) => {
+                const cell = document.createElement('div');
+                cell.style.cssText = `grid-row:1;grid-column:${2 * i + 1};align-self:center;justify-self:center;position:relative;z-index:1;`;
+                const title = escapeHtml(n.title);
+                if (n.kind === 'diamond') {
+                    cell.innerHTML = `
+                        <div style="position:absolute;left:50%;bottom:100%;transform:translateX(-50%);font-size:20px;line-height:1;font-weight:700;margin-bottom:2px;white-space:nowrap;">${n.marker}</div>
+                        <div style="position:relative;width:${dW}px;height:${dH}px;">
+                            <svg width="${dW}" height="${dH}" viewBox="0 0 ${dW} ${dH}" xmlns="http://www.w3.org/2000/svg" style="position:absolute;left:0;top:0;">
+                                <polygon points="${dW / 2},1.5 ${dW - 1.5},${dH / 2} ${dW / 2},${dH - 1.5} 1.5,${dH / 2}" fill="#fff" stroke="#000" stroke-width="1.5"/>
+                            </svg>
+                            <div style="position:absolute;left:0;top:0;width:100%;height:100%;display:flex;align-items:center;justify-content:center;text-align:center;font-size:${fs}px;line-height:1.25;padding:0 ${Math.round(dW * 0.2)}px;box-sizing:border-box;">${title}</div>
+                        </div>`;
+                } else if (n.kind === 'terminator') {
+                    cell.innerHTML = `<div style="min-width:${nodeMinW}px;max-width:150px;padding:9px ${boxPadX + 4}px;border:1.5px solid #000;border-radius:999px;background:#fff;text-align:center;${n.title.length <= 6 ? 'white-space:nowrap;' : ''}font-size:${fs}px;line-height:1.25;box-sizing:border-box;">${title}</div>`;
+                } else {
+                    cell.innerHTML = `<div style="min-width:${nodeMinW}px;max-width:150px;padding:11px ${boxPadX}px;border:1.5px solid #000;background:#fff;text-align:center;font-size:${fs}px;line-height:1.25;box-sizing:border-box;">${title}</div>`;
+                }
+                grid.appendChild(cell);
+
+                if (i < ordered.length - 1) {
+                    const arrow = document.createElement('div');
+                    arrow.style.cssText = `grid-row:1;grid-column:${2 * i + 2};align-self:center;position:relative;height:0;border-top:1.5px solid #000;margin:0 0 0 0;z-index:1;`;
+                    arrow.innerHTML = '<span style="position:absolute;right:0;top:-5.5px;width:0;height:0;border-left:9px solid #000;border-top:5px solid transparent;border-bottom:5px solid transparent;"></span>';
+                    grid.appendChild(arrow);
+                }
+            });
+
+            outer.appendChild(grid);
+            return outer;
+        }
+
+        /* =====================================================================================
 
          * 【新功能】流程圖最前／最後加上「開始」「結束」專用圖形 (圓角膠囊)；
          * 每個有停留點(★)或安衛點(※)的步驟後方，加一個「查驗」判斷符(菱形)，
@@ -24680,71 +25084,7 @@ var __async = (__this, __arguments, generator) => {
 
                 wrapperOuter.appendChild(verticalWrapper);
             } else {
-                const horizontalWrapper = document.createElement('div');
-                horizontalWrapper.className = "flex flex-col items-center gap-2";
-
-                // 開始
-                const startRow = document.createElement('div');
-                startRow.className = "flex items-center justify-center gap-2";
-                startRow.appendChild(buildFlowTerminatorElement('start'));
-                horizontalWrapper.appendChild(startRow);
-                if (hasAnyNode) {
-                    const startArrow = document.createElement('div');
-                    startArrow.className = "text-black font-black text-lg leading-none";
-                    startArrow.innerHTML = "↓";
-                    horizontalWrapper.appendChild(startArrow);
-                }
-
-                stagesOrder.forEach(stageName => {
-                    const stageNodes = nodes.filter(n => n.stage === stageName);
-                    if (stageNodes.length === 0) return;
-                    const stageRow = document.createElement('div');
-                    stageRow.className = "flex flex-col md:flex-row items-stretch border-2 border-black rounded-sm bg-white mb-3 w-full";
-                    const stageHeader = document.createElement('div');
-                    stageHeader.className = "bg-black text-white font-black py-3 px-3 flex items-center justify-center text-center md:w-24 flex-shrink-0 text-sm tracking-wider";
-                    stageHeader.textContent = stageName;
-                    const nodesArea = document.createElement('div');
-                    nodesArea.className = "flex-1 p-4 pb-10 flex flex-wrap items-center justify-start gap-3 min-h-[110px]";
-                    stageNodes.forEach((node, idx) => {
-                        const nodeBox = document.createElement('div');
-                        nodeBox.className = "flow-node-box-official flex flex-col items-center justify-center min-h-[50px]";
-                        // ★／※ 符號已移至「查驗」判斷符上，步驟方框本身只顯示名稱
-                        nodeBox.innerHTML = `<span class="text-xs font-black text-black leading-tight">${escapeHtml(node.title)}</span>`;
-                        nodesArea.appendChild(nodeBox);
-
-                        if (node.isStar || node.isWarn) {
-                            const toDecisionArrow = document.createElement('div');
-                            toDecisionArrow.className = "flex items-center justify-center text-black font-extrabold text-base px-1";
-                            toDecisionArrow.innerHTML = "→";
-                            nodesArea.appendChild(toDecisionArrow);
-                            nodesArea.appendChild(buildFlowDecisionElement(node, 'horizontal'));
-                        }
-
-                        if (idx < stageNodes.length - 1) {
-                            const arrow = document.createElement('div');
-                            arrow.className = "flex items-center justify-center text-black font-extrabold text-base px-1";
-                            arrow.innerHTML = "→";
-                            nodesArea.appendChild(arrow);
-                        }
-                    });
-                    stageRow.appendChild(stageHeader);
-                    stageRow.appendChild(nodesArea);
-                    horizontalWrapper.appendChild(stageRow);
-                });
-
-                // 結束
-                if (hasAnyNode) {
-                    const endArrow = document.createElement('div');
-                    endArrow.className = "text-black font-black text-lg leading-none";
-                    endArrow.innerHTML = "↓";
-                    horizontalWrapper.appendChild(endArrow);
-                }
-                const endRow = document.createElement('div');
-                endRow.className = "flex items-center justify-center gap-2";
-                endRow.appendChild(buildFlowTerminatorElement('end'));
-                horizontalWrapper.appendChild(endRow);
-
-                wrapperOuter.appendChild(horizontalWrapper);
+                wrapperOuter.appendChild(buildOfficialHorizontalFlowElement(nodes));
             }
             return wrapperOuter;
         }
@@ -24919,7 +25259,65 @@ var __async = (__this, __arguments, generator) => {
          * 【新功能】PNG 匯出比照畫面顯示，開頭/結尾繪製「開始」「結束」圓角膠囊，
          * 每個有停留點(★)或安衛點(※)的步驟後方繪製「查驗」菱形判斷符 + 「不合格」迴圈箭頭標註。
          * ===================================================================================================== */
+        // 橫式 PNG：圖形部分以官方橫式版面 (行內樣式 DOM) 經 SVG foreignObject 轉成影像，再於畫布上補上備註與圖名
+        function exportFlowPNGHorizontal() {
+            if (!flowCurrentNodes.some(n => ['施工前', '施工中', '施工後'].includes(n.stage))) { alert('無流程圖資料可匯出！'); return; }
+            const el = buildOfficialHorizontalFlowElement(flowCurrentNodes);
+            const probe = document.createElement('div');
+            probe.style.cssText = 'position:fixed;left:-99999px;top:0;width:1000px;background:#fff;';
+            probe.appendChild(el);
+            document.body.appendChild(probe);
+            const grid = el.firstChild;
+            const gw = Math.max(1000, grid.scrollWidth);
+            grid.style.width = gw + 'px';
+            const gh = grid.offsetHeight;
+            const xml = new XMLSerializer().serializeToString(grid);
+            document.body.removeChild(probe);
+
+            const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${gw}" height="${gh}"><foreignObject width="100%" height="100%">${xml}</foreignObject></svg>`;
+            const img = new Image();
+            img.onload = () => {
+                const showLegend = document.getElementById('showLegendsCheckbox').checked;
+                const legendH = showLegend ? 150 : 40;
+                const W = gw + 80, H = gh + legendH + 80;
+                const scale = 2;
+                const canvas = document.createElement('canvas');
+                canvas.width = W * scale; canvas.height = H * scale;
+                const ctx = canvas.getContext('2d');
+                ctx.scale(scale, scale);
+                ctx.fillStyle = '#ffffff'; ctx.fillRect(0, 0, W, H);
+                ctx.strokeStyle = '#000000'; ctx.lineWidth = 3; ctx.strokeRect(10, 10, W - 20, H - 20);
+                ctx.drawImage(img, 40, 40, gw, gh);
+                if (showLegend) {
+                    const y0 = 40 + gh + 10;
+                    ctx.lineWidth = 1.5;
+                    ctx.beginPath(); ctx.moveTo(40, y0); ctx.lineTo(W - 40, y0); ctx.stroke();
+                    ctx.textAlign = 'left'; ctx.fillStyle = '#000000';
+                    ctx.font = "bold 13px 'Noto Serif TC', '標楷體', serif";
+                    ctx.fillText('備註：★ 施工檢驗停留點      ※ 安全衛生查驗點', 40, y0 + 24);
+                    ctx.font = "12px 'Noto Serif TC', '標楷體', serif";
+                    ctx.fillText('1. 施工檢驗停留點及安全衛生查驗點均應於廠商完成自主檢查後辦理；於圖中未標示為施工檢驗停留點及安全衛生查驗點者，為監造單位之不定期抽查點。', 40, y0 + 46);
+                    ctx.fillText('2. 安全衛生查驗點使用表單為「作業停留點安全檢核表」。', 40, y0 + 66);
+                    ctx.textAlign = 'center';
+                    ctx.font = "bold 16px 'Noto Serif TC', '標楷體', serif";
+                    ctx.fillText(document.getElementById('diagramTitleInput').value || '施工抽查程序', W / 2, y0 + 100);
+                }
+                const titleText = document.getElementById('diagramTitleInput').value || '施工抽查程序流程圖';
+                try {
+                    const link = document.createElement('a');
+                    link.download = `${titleText}.png`;
+                    link.href = canvas.toDataURL('image/png');
+                    link.click();
+                } catch (e) {
+                    alert('此瀏覽器不支援橫式 PNG 匯出，請改用「匯出 SVG」或「列印 / PDF」。');
+                }
+            };
+            img.onerror = () => alert('橫式 PNG 產生失敗，請改用「匯出 SVG」或「列印 / PDF」。');
+            img.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg);
+        }
+
         function exportFlowPNG() {
+            if (flowLayoutOrientation === 'horizontal') { exportFlowPNGHorizontal(); return; }
             const stages = ['施工前', '施工中', '施工後'];
             const activeStages = stages.map(s => ({ name: s, nodes: flowCurrentNodes.filter(n => n.stage === s) })).filter(s => s.nodes.length > 0);
             if (activeStages.length === 0) { alert('無流程圖資料可匯出！'); return; }
@@ -25112,10 +25510,6 @@ var __async = (__this, __arguments, generator) => {
             #tabPanel_record > section:nth-child(2),
             #tabPanel_flow > section { min-width: 0; }
         }
-        #overviewMajorFilterButtons { align-items: center; }
-        .overview-preview-card { min-width: 0; overflow: hidden; }
-        .overview-preview-card #overviewFlowPreview,
-        .overview-preview-card #overviewRecordPreview { min-width: 0; }
 </style>
                     <foreignObject width="100%" height="100%">
                         <div xmlns="http://www.w3.org/1999/xhtml" style="background: white; padding: 20px;">
@@ -25250,75 +25644,6 @@ var __async = (__this, __arguments, generator) => {
             if (flowActions) flowActions.classList.toggle('hidden', tabName !== 'flow');
 
             if (tabName === 'flow') renderFlowAll();
-            if (tabName === 'overview') renderOverviewPreview();
-        }
-
-        // 依目前「總覽預覽」選取的分項工程，同時組出紀錄表(唯讀靜態版)與程序表預覽
-        function renderOverviewPreview() {
-            const select = document.getElementById('overviewSubProjectSelect');
-            const recordContainer = document.getElementById('overviewRecordPreview');
-            const flowContainer = document.getElementById('overviewFlowPreview');
-            if (!select || !select.value) {
-                // 目前大類篩選下沒有任何分項工程 (例如尚未建立資料的 E08)，清空預覽避免殘留上一次選取的舊內容
-                if (recordContainer) recordContainer.innerHTML = '<p class="text-sm text-slate-400 p-4">此大類目前尚無分項工程資料</p>';
-                if (flowContainer) flowContainer.innerHTML = '<p class="text-sm text-slate-400 p-4">此大類目前尚無分項工程資料</p>';
-                return;
-            }
-            const category = select.value; // 現在下拉選單的值是「分項工程 (category)」名稱，與紀錄表分頁一致
-            const project = getMergedFlowProjectForCategory(category);
-
-            const recordSnap = buildOverviewRecordSnapshot(category, project ? project.code : '');
-            recordContainer.innerHTML = recordSnap ? buildRecordPrintHTML(recordSnap) : '<p class="text-sm text-slate-400 p-4">查無對應紀錄表資料</p>';
-
-            flowContainer.innerHTML = '';
-            if (project) {
-                const frame = document.createElement('div');
-                frame.className = 'appendix-d-frame p-4';
-                frame.appendChild(buildFlowchartStagesElement(project.nodes, flowLayoutOrientation));
-                flowContainer.appendChild(frame);
-            } else {
-                flowContainer.innerHTML = '<p class="text-sm text-slate-400 p-4">查無對應程序表資料</p>';
-            }
-        }
-
-        // 依「分項工程 (category)」名稱從 flowProjectDataMap (以 `${code} ${category}` 為 key) 找出對應的程序表資料。
-        // 若同一分項工程底下存在多筆不同編號的資料 (例如同一工項被拆成多個 code)，將其節點合併後一併顯示，
-        // 避免使用者在總覽預覽選了某個分項工程，卻只看到其中一個編號的部分流程。
-        function getMergedFlowProjectForCategory(category) {
-            const matchedKeys = Object.keys(flowProjectDataMap).filter(key => flowProjectDataMap[key].title === category);
-            if (matchedKeys.length === 0) return null;
-            if (matchedKeys.length === 1) return flowProjectDataMap[matchedKeys[0]];
-
-            const merged = { code: flowProjectDataMap[matchedKeys[0]].code, title: category, nodes: [] };
-            matchedKeys.forEach(key => {
-                flowProjectDataMap[key].nodes.forEach(n => {
-                    const exists = merged.nodes.find(m => m.title === n.title && m.stage === n.stage);
-                    if (!exists) merged.nodes.push(n);
-                });
-            });
-            return merged;
-        }
-
-        // 總覽預覽用：依工項名稱組出一份唯讀的紀錄表快照 (不含現場實際填寫資料，僅供核對表頭與管理項目)
-        function buildOverviewRecordSnapshot(category, code = '') {
-            let matched = standardDatabase.filter(r => r.category === category && (!code || r.code === code));
-            if (matched.length === 0) matched = standardDatabase.filter(r => r.category === category);
-            if (matched.length === 0) return null;
-            const first = matched[0] || {};
-            return {
-                id: 0,
-                company: document.getElementById('in_company')?.value || 'OOO工程顧問股份有限公司',
-                no: first.code || category,
-                subProjectLabel: category,
-                projName: document.getElementById('in_projName')?.value || '',
-                contractor: document.getElementById('in_contractor')?.value || '',
-                location: '（總覽預覽，不含現場填寫資料）',
-                inspector: document.getElementById('in_inspector')?.value || '',
-                dateText: document.getElementById('pv_date')?.innerText || '',
-                proofDoc: document.getElementById('in_proofDoc')?.value || '',
-                items: matched.map(r => ({ stage: r.stage || '', process: r.process || '', item: r.item || '', standard: r.standard || '', actual: '', result: '○', note: '' })),
-                photos: []
-            };
         }
     </script>
 </body>
