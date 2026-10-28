@@ -20676,6 +20676,21 @@ var __async = (__this, __arguments, generator) => {
 
     @media (max-width: 767px) { header.sticky { position: static; } }
 </style>
+<style>
+        /* 照片紅框標註視窗 */
+        .annot { position: fixed; inset: 0; z-index: 200; background: #111418; color: #fff; display: flex; flex-direction: column; }
+        .annot[hidden] { display: none; }
+        .annot-bar, .annot-foot { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 10px 12px; flex-wrap: wrap; }
+        .annot-group { display: flex; gap: 6px; flex-wrap: wrap; }
+        .annot button { font-size: 14px; font-weight: 600; color: #fff; background: #2a3039; border: 1px solid #3c4450; border-radius: 8px; padding: 9px 12px; cursor: pointer; min-width: 44px; }
+        .annot button.on { background: #c81e1e; border-color: #e04848; }
+        .annot button.primary { background: #2563eb; border-color: #2563eb; padding: 10px 22px; }
+        .annot button:disabled { opacity: .4; cursor: not-allowed; }
+        .annot-stage { flex: 1 1 auto; min-height: 0; display: flex; align-items: center; justify-content: center; padding: 4px 8px; }
+        .annot-stage canvas { touch-action: none; display: block; background: #000; cursor: crosshair; }
+        .annot-hint { font-size: 12.5px; color: #aab2bd; }
+        body.annot-open { overflow: hidden; }
+    </style>
 </head>
 <body class="bg-slate-100 text-slate-800 font-sans">
 
@@ -20687,31 +20702,6 @@ var __async = (__this, __arguments, generator) => {
                 施工抽查紀錄表產生器
             </h1>
             <div class="flex flex-wrap gap-2">
-                <!-- 匯入標準表 Excel：可隨時匯入新的 .xlsx 檔案，同步覆蓋內建標準庫，同時更新紀錄表與程序表資料 -->
-                <label class="bg-emerald-600 hover:bg-emerald-700 px-3 py-1.5 rounded text-sm cursor-pointer transition flex items-center gap-1">
-                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"></path></svg>
-                    匯入標準表 Excel
-                    <input type="file" id="excelFileInput" accept=".xlsx, .xls, .csv" class="hidden" onchange="importStandardExcel(event)">
-                </label>
-
-                <!-- 資料匯入／版本管理：新功能入口。放置於頂部操作列 (非預覽區)，避免與流程圖/紀錄表/總覽預覽的操作區重疊。
-                     點擊後開啟「版本管理」Modal，可查看/比較/匯出/回復歷史版本；Excel 匯入仍使用上方同一顆按鈕，
-                     匯入後會先彈出確認視窗，由使用者選擇「完整比對／逐項審核」或「直接匯入」。 -->
-                <button onclick="openVersionManagerModal()" class="bg-amber-600 hover:bg-amber-700 px-3 py-1.5 rounded text-sm transition flex items-center gap-1">
-                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 7v10c0 1.1 3.6 2 8 2s8-.9 8-2V7M4 7c0 1.1 3.6 2 8 2s8-.9 8-2M4 7c0-1.1 3.6-2 8-2s8 .9 8 2m0 5c0 1.1-3.6 2-8 2s-8-.9-8-2"></path></svg>
-                    資料版本管理 (<span id="versionCountBadge">1</span>)
-                </button>
-
-                <!-- 【新功能】雲端同步設定：讓使用者貼上自己的 Google Apps Script 網頁應用程式網址，
-                     之後每次在「紀錄表」分頁按下「列印」或「匯出 Word」時，會自動把該筆紀錄表資料
-                     (管理項目逐列 + 照片) 同步寫入使用者自己的 Google 試算表。網址存在瀏覽器本機
-                     (localStorage)，不會上傳到任何第三方伺服器。 -->
-                <button onclick="openCloudSyncSettingsModal()" class="bg-teal-600 hover:bg-teal-700 px-3 py-1.5 rounded text-sm transition flex items-center gap-1">
-                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 15a4 4 0 004 4h9a5 5 0 001.5-9.77 4.5 4.5 0 00-8.33-3.37A4 4 0 003 11.5"></path></svg>
-                    ☁️ 雲端同步設定
-                    <span id="cloudSyncStatusDot" class="w-2 h-2 rounded-full bg-slate-300 ml-1" title="尚未啟用"></span>
-                </button>
-
                 <!-- 紀錄表分頁專屬操作按鈕 -->
                 <div id="recordTabActions" class="flex flex-wrap gap-2">
                     <!-- 匯出 Word(.docx)：使用 docx.js 於前端直接產生符合範例格式的 Word 檔。
@@ -20766,6 +20756,7 @@ var __async = (__this, __arguments, generator) => {
         <div class="max-w-7xl mx-auto flex gap-1 pt-2 -mb-4">
             <button id="tabBtn_record" onclick="switchTab('record')" class="tab-nav-btn tab-nav-btn-active">📋 紀錄表</button>
             <button id="tabBtn_flow" onclick="switchTab('flow')" class="tab-nav-btn">🧭 流程圖</button>
+            <button id="tabBtn_settings" onclick="switchTab('settings')" class="tab-nav-btn">⚙ 版本設定</button>
         </div>
     </header>
 
@@ -20774,6 +20765,7 @@ var __async = (__this, __arguments, generator) => {
         <!-- ============================== 左側：資料填報面板 (列印時隱藏) ============================== -->
         <section id="recordInputPanel" class="no-print lg:col-span-4 bg-white rounded-lg shadow border border-slate-200 p-4 space-y-4 h-fit">
             <h2 class="text-lg font-bold border-b pb-2 border-slate-200 text-slate-700">抽查表單填寫</h2>
+            <p id="autosaveStatus" class="text-[11px] text-slate-400 -mt-2" aria-live="polite">填寫內容會自動暫存在本機瀏覽器</p>
 
             <div class="space-y-3">
                 <!-- 大分類篩選按鈕：依「編號」欄位前綴(如 E01)歸類，點擊後限縮下方分項工程下拉選單的選項 -->
@@ -21035,6 +21027,75 @@ var __async = (__this, __arguments, generator) => {
     <!-- ============================== 分頁二：程序表 (施工抽查程序流程圖) ==============================
          整合自「施工抽查程序流程圖產生器」，資料來源與紀錄表共用同一份 standardDatabase (Excel 匯入或內建預設)，
          依「編號＋工項」分組成流程節點，並自動解析 process 欄位中的 ★／※ 符號為施工檢驗停留點／安全衛生查驗點。 -->
+    <div id="photoAnnotator" class="annot no-print" hidden role="dialog" aria-modal="true" aria-label="照片紅框標註">
+        <div class="annot-bar">
+            <div class="annot-group" id="annotTools">
+                <button type="button" data-tool="ellipse" class="on">◯ 圓圈</button>
+                <button type="button" data-tool="rect">▢ 方框</button>
+                <button type="button" data-tool="arrow">↗ 箭頭</button>
+            </div>
+            <div class="annot-group">
+                <button type="button" id="annotUndo">↶ 復原</button>
+                <button type="button" id="annotClear">全部清除</button>
+            </div>
+        </div>
+        <div class="annot-stage" id="annotStage"><canvas id="annotCanvas"></canvas></div>
+        <div class="annot-foot">
+            <span class="annot-hint">在照片上拖曳畫出紅框，可畫多個</span>
+            <div class="annot-group">
+                <button type="button" id="annotCancel">取消</button>
+                <button type="button" id="annotDone" class="primary">完成</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ============================== 分頁：版本設定 ==============================
+         原本放在頁首的「匯入標準表 Excel」「資料版本管理」「雲端同步設定」移到此分頁，
+         元素 id 與 onclick 全部沿用，原有功能邏輯完全不變。 -->
+    <main id="tabPanel_settings" class="app-tab px-3 md:px-4 py-4 md:py-5">
+        <div class="max-w-3xl mx-auto space-y-4 no-print">
+            <section class="bg-white rounded-lg shadow border border-slate-200 p-4">
+                <h2 class="text-base font-bold text-slate-700 mb-1">📥 標準表資料</h2>
+                <p class="text-xs text-slate-500 mb-3">匯入新的 Excel 標準表後，會更新「紀錄表」與「流程圖」使用的標準資料；匯入前可選擇逐項審核差異。</p>
+                <div class="flex flex-wrap gap-2">
+                <!-- 匯入標準表 Excel：可隨時匯入新的 .xlsx 檔案，同步覆蓋內建標準庫，同時更新紀錄表與程序表資料 -->
+                <label class="bg-emerald-600 hover:bg-emerald-700 px-3 py-1.5 rounded text-sm cursor-pointer transition flex items-center gap-1">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"></path></svg>
+                    匯入標準表 Excel
+                    <input type="file" id="excelFileInput" accept=".xlsx, .xls, .csv" class="hidden" onchange="importStandardExcel(event)">
+                </label>
+                <!-- 資料匯入／版本管理：新功能入口。放置於頂部操作列 (非預覽區)，避免與流程圖/紀錄表/總覽預覽的操作區重疊。
+                     點擊後開啟「版本管理」Modal，可查看/比較/匯出/回復歷史版本；Excel 匯入仍使用上方同一顆按鈕，
+                     匯入後會先彈出確認視窗，由使用者選擇「完整比對／逐項審核」或「直接匯入」。 -->
+                <button onclick="openVersionManagerModal()" class="bg-amber-600 hover:bg-amber-700 px-3 py-1.5 rounded text-sm transition flex items-center gap-1">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 7v10c0 1.1 3.6 2 8 2s8-.9 8-2V7M4 7c0 1.1 3.6 2 8 2s8-.9 8-2M4 7c0-1.1 3.6-2 8-2s8 .9 8 2m0 5c0 1.1-3.6 2-8 2s-8-.9-8-2"></path></svg>
+                    資料版本管理 (<span id="versionCountBadge">1</span>)
+                </button>
+                </div>
+            </section>
+            <section class="bg-white rounded-lg shadow border border-slate-200 p-4">
+                <h2 class="text-base font-bold text-slate-700 mb-1">☁️ 雲端同步</h2>
+                <p class="text-xs text-slate-500 mb-3">貼上自己的 Google Apps Script 網址後，列印／匯出 Word 時會自動把紀錄表與照片同步到 Google 試算表，並依工項接續表單流水號。</p>
+                <div class="flex flex-wrap gap-2">
+                <!-- 【新功能】雲端同步設定：讓使用者貼上自己的 Google Apps Script 網頁應用程式網址，
+                     之後每次在「紀錄表」分頁按下「列印」或「匯出 Word」時，會自動把該筆紀錄表資料
+                     (管理項目逐列 + 照片) 同步寫入使用者自己的 Google 試算表。網址存在瀏覽器本機
+                     (localStorage)，不會上傳到任何第三方伺服器。 -->
+                <button onclick="openCloudSyncSettingsModal()" class="bg-teal-600 hover:bg-teal-700 px-3 py-1.5 rounded text-sm transition flex items-center gap-1">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 15a4 4 0 004 4h9a5 5 0 001.5-9.77 4.5 4.5 0 00-8.33-3.37A4 4 0 003 11.5"></path></svg>
+                    ☁️ 雲端同步設定
+                    <span id="cloudSyncStatusDot" class="w-2 h-2 rounded-full bg-slate-300 ml-1" title="尚未啟用"></span>
+                </button>
+                </div>
+            </section>
+            <section class="bg-white rounded-lg shadow border border-slate-200 p-4">
+                <h2 class="text-base font-bold text-slate-700 mb-1">💾 本機暫存</h2>
+                <p class="text-xs text-slate-500 mb-3">紀錄表的填寫內容與照片（含紅框）會自動暫存在這台裝置的瀏覽器，重新整理或關閉後可還原。資料不會上傳。</p>
+                <button onclick="clearDraftAndRestart()" class="px-3 py-1.5 rounded text-sm border border-red-300 text-red-600 hover:bg-red-50">🗑 清除暫存並重新開始</button>
+            </section>
+        </div>
+    </main>
+
     <main id="tabPanel_flow" class="app-tab workspace-shell px-3 md:px-4 py-4 md:py-5 grid grid-cols-1 lg:grid-cols-12 gap-4">
 
         <!-- 左側：程序表控制面板 (列印時隱藏)，版面風格與紀錄表分頁一致 -->
@@ -21555,6 +21616,8 @@ var __async = (__this, __arguments, generator) => {
 
             // 手機等窄螢幕開啟時，預設直接進入手機填報模式 (可用右上按鈕切回標準版面)
             if (window.innerWidth < 768 && !mobilePreviewModeActive) toggleMobilePreviewMode();
+
+            restoreDraftOnLoad(); // 若有上次未完成的暫存，詢問是否還原
         });
 
         // 讀取內嵌於頁面中的預設標準資料庫 JSON (僅負責解析，不直接寫入 standardDatabase)
@@ -21870,6 +21933,7 @@ var __async = (__this, __arguments, generator) => {
             });
 
             refreshMobilePreviewIfActive();
+            scheduleDraftSave();
         }
 
         // 當使用者編輯某一格輸入框時，同步更新同一格中隱藏的「列印用純文字版本」
@@ -21978,8 +22042,9 @@ var __async = (__this, __arguments, generator) => {
 
             Promise.all(files.map(readAsDataUrl)).then(dataUrls => {
                 dataUrls.forEach(dataUrl => {
-                    photos.push({ id: ++rowIdCounter, dataUrl, desc: '' });
+                    photos.push({ id: ++rowIdCounter, dataUrl, desc: '', shapes: [] });
                 });
+                markDraftDirty();
                 renderPhotos();
 
                 // 完成上傳提醒：顯示於上傳方框下方文字，並跳出提示訊息
@@ -22007,6 +22072,7 @@ var __async = (__this, __arguments, generator) => {
         // 移除指定照片
         function removePhoto(photoId) {
             photos = photos.filter(p => p.id !== photoId);
+            markDraftDirty();
             renderPhotos();
         }
 
@@ -22037,7 +22103,8 @@ var __async = (__this, __arguments, generator) => {
                         placeholder="輸入本張照片之詳細說明文字..."
                         oninput="updatePhotoDesc(${p.id}, this.value)">${escapeHtml(p.desc)}</textarea>
                     <div class="hidden print:block auto-wrap text-xs text-center mt-1">${escapeHtml(p.desc)}</div>
-                    <div class="no-print text-center mt-1">
+                    <div class="no-print text-center mt-1 flex justify-center gap-2">
+                        <button onclick="openPhotoAnnotator(${p.id})" class="text-rose-700 hover:text-rose-900 text-xs border border-rose-300 rounded px-2 py-1">${(p.shapes && p.shapes.length) ? '編輯紅框（' + p.shapes.length + '）' : '標註紅框'}</button>
                         <button onclick="removePhoto(${p.id})" class="text-red-600 hover:text-red-800 text-xs border border-red-300 rounded px-2 py-1">移除此照片</button>
                     </div>
                 `;
@@ -24336,6 +24403,7 @@ var __async = (__this, __arguments, generator) => {
                     <div class="text-xs font-bold mt-1">照片 ${idx + 1}：${escapeHtml(record.location || '')}</div>
                     <textarea rows="2" placeholder="照片說明…" class="w-full border border-slate-300 rounded-lg p-2 text-sm mt-1"
                         oninput="mobilePhotoDesc(${p.id}, this)">${escapeHtml(p.desc || '')}</textarea>
+                    <button type="button" onclick="openPhotoAnnotator(${p.id})" class="mt-1 mr-2 text-rose-700 text-xs border border-rose-300 rounded px-3 py-1.5">${(p.shapes && p.shapes.length) ? '編輯紅框（' + p.shapes.length + '）' : '標註紅框'}</button>
                     <button type="button" onclick="removePhoto(${p.id})" class="mt-1 text-red-600 text-xs border border-red-300 rounded px-3 py-1.5">移除此照片</button>
                 </div>`).join('');
 
@@ -24414,7 +24482,7 @@ var __async = (__this, __arguments, generator) => {
             const first = matched[0] || {};
             return {
                 id: ++recordIdCounter,
-                company: document.getElementById('in_company')?.value || '台灣世曦工程顧問股份有限公司',
+                company: document.getElementById('in_company')?.value || 'OOO工程顧問股份有限公司',
                 no: first.code || category,
                 subProjectLabel: category,
                 projName: document.getElementById('in_projName')?.value || '',
@@ -25632,6 +25700,312 @@ var __async = (__this, __arguments, generator) => {
         /* =====================================================================================================
          * 【整合新增：頂部分頁籤切換 + 總覽預覽】
          * ===================================================================================================== */
+        /* =====================================================================================
+         * 【照片紅框標註】(參考「工地安衛環保檢查表 照片自動編排工具」的作法)
+         * - 紅框形狀以 0~1 正規化座標存於 photo.shapes，疊在「未被改動的原圖 photo.origDataUrl」之上，
+         *   因此隨時可再次進入編輯、增減或清除紅框。
+         * - 實際用於列印、匯出 Word、合併列印與雲端同步的 photo.dataUrl，是「原圖 + 紅框燒入」後的合成 JPEG；
+         *   原有所有輸出流程完全不需修改。清除全部紅框時，dataUrl 會還原為原圖。
+         * ===================================================================================== */
+        const MARK_COLOR = '#e00000';
+        function markLineWidth(w, h) { return Math.max(3, Math.round(Math.min(w, h) * 0.012)); }
+
+        function drawMarkShape(ctx, s, w, h, lw) {
+            const x1 = s.x1 * w, y1 = s.y1 * h, x2 = s.x2 * w, y2 = s.y2 * h;
+            ctx.save();
+            ctx.strokeStyle = MARK_COLOR; ctx.fillStyle = MARK_COLOR;
+            ctx.lineWidth = lw; ctx.lineJoin = 'round'; ctx.lineCap = 'round';
+            ctx.beginPath();
+            if (s.type === 'ellipse') {
+                ctx.ellipse((x1 + x2) / 2, (y1 + y2) / 2, Math.max(1, Math.abs(x2 - x1) / 2), Math.max(1, Math.abs(y2 - y1) / 2), 0, 0, Math.PI * 2);
+                ctx.stroke();
+            } else if (s.type === 'rect') {
+                ctx.rect(Math.min(x1, x2), Math.min(y1, y2), Math.abs(x2 - x1), Math.abs(y2 - y1));
+                ctx.stroke();
+            } else if (s.type === 'arrow') {
+                const ang = Math.atan2(y2 - y1, x2 - x1);
+                const head = lw * 4.5;
+                const bx = x2 - Math.cos(ang) * head * 0.8, by = y2 - Math.sin(ang) * head * 0.8;
+                ctx.moveTo(x1, y1); ctx.lineTo(bx, by); ctx.stroke();
+                ctx.beginPath();
+                ctx.moveTo(x2, y2);
+                ctx.lineTo(x2 - head * Math.cos(ang - 0.5), y2 - head * Math.sin(ang - 0.5));
+                ctx.lineTo(x2 - head * Math.cos(ang + 0.5), y2 - head * Math.sin(ang + 0.5));
+                ctx.closePath(); ctx.fill();
+            }
+            ctx.restore();
+        }
+
+        function loadImageFromDataUrl(dataUrl) {
+            return new Promise((resolve, reject) => {
+                const img = new Image();
+                img.onload = () => resolve(img);
+                img.onerror = () => reject(new Error('無法載入照片'));
+                img.src = dataUrl;
+            });
+        }
+
+        // 原圖 + 紅框 → 合成 JPEG dataUrl
+        async function compositePhotoMarks(origDataUrl, shapes) {
+            const img = await loadImageFromDataUrl(origDataUrl);
+            const w = img.naturalWidth, h = img.naturalHeight;
+            const c = document.createElement('canvas');
+            c.width = w; c.height = h;
+            const ctx = c.getContext('2d');
+            ctx.drawImage(img, 0, 0, w, h);
+            const lw = markLineWidth(w, h);
+            shapes.forEach(s => drawMarkShape(ctx, s, w, h, lw));
+            return c.toDataURL('image/jpeg', 0.9);
+        }
+
+        let annot = null; // { photo, img, shapes, tool, draft, pointerId }
+        function annotEls() {
+            return {
+                root: document.getElementById('photoAnnotator'), stage: document.getElementById('annotStage'),
+                canvas: document.getElementById('annotCanvas'),
+                undo: document.getElementById('annotUndo'), clear: document.getElementById('annotClear')
+            };
+        }
+
+        function annotLayout() {
+            if (!annot) return;
+            const { stage, canvas } = annotEls();
+            const iw = annot.img.naturalWidth, ih = annot.img.naturalHeight;
+            const maxW = stage.clientWidth - 16, maxH = stage.clientHeight - 8;
+            const scale = Math.min(maxW / iw, maxH / ih);
+            const dispW = Math.max(50, Math.floor(iw * scale)), dispH = Math.max(50, Math.floor(ih * scale));
+            const dpr = window.devicePixelRatio || 1;
+            canvas.style.width = dispW + 'px'; canvas.style.height = dispH + 'px';
+            canvas.width = Math.round(dispW * dpr); canvas.height = Math.round(dispH * dpr);
+            annotRedraw();
+        }
+
+        function annotRedraw() {
+            if (!annot) return;
+            const { canvas, undo, clear } = annotEls();
+            const ctx = canvas.getContext('2d');
+            const W = canvas.width, H = canvas.height;
+            ctx.clearRect(0, 0, W, H);
+            ctx.drawImage(annot.img, 0, 0, W, H);
+            const lw = markLineWidth(W, H); // 與最終合成相同的線寬比例
+            annot.shapes.forEach(s => drawMarkShape(ctx, s, W, H, lw));
+            if (annot.draft) drawMarkShape(ctx, annot.draft, W, H, lw);
+            undo.disabled = clear.disabled = annot.shapes.length === 0;
+        }
+
+        function setAnnotTool(tool) {
+            if (annot) annot.tool = tool;
+            document.querySelectorAll('#annotTools button').forEach(b => b.classList.toggle('on', b.dataset.tool === tool));
+        }
+
+        async function openPhotoAnnotator(photoId) {
+            const p = photos.find(x => x.id === photoId);
+            if (!p) return;
+            if (!p.origDataUrl) p.origDataUrl = p.dataUrl; // 第一次標註時才保存原圖
+            try {
+                const img = await loadImageFromDataUrl(p.origDataUrl);
+                annot = { photo: p, img, shapes: (p.shapes || []).map(s => Object.assign({}, s)), tool: (annot && annot.tool) || 'ellipse', draft: null };
+                annotEls().root.hidden = false;
+                document.body.classList.add('annot-open');
+                setAnnotTool(annot.tool);
+                requestAnimationFrame(annotLayout);
+            } catch (err) { alert(err.message); }
+        }
+
+        function closePhotoAnnotator() {
+            annot = null;
+            annotEls().root.hidden = true;
+            document.body.classList.remove('annot-open');
+        }
+
+        function annotPoint(e) {
+            const r = annotEls().canvas.getBoundingClientRect();
+            return { x: Math.min(1, Math.max(0, (e.clientX - r.left) / r.width)), y: Math.min(1, Math.max(0, (e.clientY - r.top) / r.height)) };
+        }
+
+        async function finishPhotoAnnotation() {
+            if (!annot) return;
+            const p = annot.photo, shapes = annot.shapes;
+            closePhotoAnnotator();
+            try {
+                p.shapes = shapes;
+                p.dataUrl = shapes.length ? await compositePhotoMarks(p.origDataUrl, shapes) : p.origDataUrl;
+                markDraftDirty();
+                renderPhotos();
+            } catch (err) { alert(err.message || '標註失敗'); }
+        }
+
+        (function initPhotoAnnotator() {
+            const { canvas, undo, clear } = annotEls();
+            document.getElementById('annotTools').addEventListener('click', (e) => {
+                const b = e.target.closest('button[data-tool]');
+                if (b) setAnnotTool(b.dataset.tool);
+            });
+            canvas.addEventListener('pointerdown', (e) => {
+                if (!annot) return;
+                e.preventDefault();
+                try { canvas.setPointerCapture(e.pointerId); } catch (err) { /* ignore */ }
+                const p = annotPoint(e);
+                annot.draft = { type: annot.tool, x1: p.x, y1: p.y, x2: p.x, y2: p.y };
+                annot.pointerId = e.pointerId;
+            });
+            canvas.addEventListener('pointermove', (e) => {
+                if (!annot || !annot.draft || e.pointerId !== annot.pointerId) return;
+                e.preventDefault();
+                const p = annotPoint(e);
+                annot.draft.x2 = p.x; annot.draft.y2 = p.y;
+                annotRedraw();
+            });
+            const endDraft = (e) => {
+                if (!annot || !annot.draft || e.pointerId !== annot.pointerId) return;
+                const d = annot.draft;
+                annot.draft = null;
+                // 忽略輕點或極小的誤觸拖曳
+                if (Math.max(Math.abs(d.x2 - d.x1), Math.abs(d.y2 - d.y1)) > 0.02) annot.shapes.push(d);
+                annotRedraw();
+            };
+            canvas.addEventListener('pointerup', endDraft);
+            canvas.addEventListener('pointercancel', endDraft);
+            undo.addEventListener('click', () => { if (annot) { annot.shapes.pop(); annotRedraw(); } });
+            clear.addEventListener('click', () => {
+                if (annot && annot.shapes.length && confirm('清除這張照片上所有紅框？')) { annot.shapes = []; annotRedraw(); }
+            });
+            document.getElementById('annotCancel').addEventListener('click', closePhotoAnnotator);
+            document.getElementById('annotDone').addEventListener('click', finishPhotoAnnotation);
+            window.addEventListener('resize', () => { if (annot) annotLayout(); });
+            document.addEventListener('keydown', (e) => { if (annot && e.key === 'Escape') closePhotoAnnotator(); });
+        })();
+
+        /* =====================================================================================
+         * 【本機自動暫存 (IndexedDB)】
+         * 填寫內容 (表頭欄位、分項工程、各管理項目的實測值/結果/備註、安全衛生勾選、照片含紅框與說明)
+         * 會在變動後約 0.7 秒自動存在這台裝置的瀏覽器；頁面被重整、關閉，或手機切到相機 APP 時被系統回收，
+         * 下次開啟會詢問是否還原。資料只存在本機，不會上傳。
+         * 另用獨立的資料庫名稱，避免與同一網域下其他工具互相干擾。
+         * ===================================================================================== */
+        const DRAFT_DB = 'construction-inspection-record-tool';
+        const DRAFT_STORE = 'drafts';
+        const DRAFT_KEY = 'current';
+        const DRAFT_HEADER_IDS = ['in_company', 'in_no', 'in_projName', 'in_contractor', 'in_location', 'in_inspector', 'in_date', 'in_proofDoc'];
+        let autosaveReady = false;     // 還原與否決定之前不寫入，避免覆蓋舊暫存
+        let autosaveDisabled = false;  // 清除暫存後重新整理時，避免離開頁面又被存回去
+        let draftDirty = false;        // 使用者尚未動過任何內容時不暫存，避免每次開啟都出現「還原」詢問
+        let draftSaveTimer = null;
+        let draftDbPromise = null;
+
+        function draftOpenDb() {
+            if (draftDbPromise) return draftDbPromise;
+            draftDbPromise = new Promise((resolve, reject) => {
+                if (!window.indexedDB) { reject(new Error('此瀏覽器不支援本機暫存')); return; }
+                const req = indexedDB.open(DRAFT_DB, 1);
+                req.onupgradeneeded = () => req.result.createObjectStore(DRAFT_STORE);
+                req.onsuccess = () => resolve(req.result);
+                req.onerror = () => reject(req.error || new Error('無法開啟本機暫存'));
+            });
+            draftDbPromise.catch(() => { draftDbPromise = null; });
+            return draftDbPromise;
+        }
+        function draftDbOp(mode, fn) {
+            return draftOpenDb().then(db => new Promise((resolve, reject) => {
+                const tx = db.transaction(DRAFT_STORE, mode);
+                const req = fn(tx.objectStore(DRAFT_STORE));
+                tx.oncomplete = () => resolve(req && req.result);
+                tx.onerror = () => reject(tx.error);
+                tx.onabort = () => reject(tx.error || new Error('暫存失敗（空間可能不足）'));
+            }));
+        }
+
+        function setAutosaveText(text, ok) {
+            const el = document.getElementById('autosaveStatus');
+            if (!el) return;
+            el.textContent = text;
+            el.className = 'text-[11px] ' + (ok ? 'text-emerald-600' : 'text-amber-600');
+        }
+        function draftHHMM(t) {
+            const d = new Date(t);
+            return String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0');
+        }
+
+        function buildDraftSnapshot() {
+            const header = {};
+            DRAFT_HEADER_IDS.forEach(id => { header[id] = document.getElementById(id).value; });
+            return {
+                savedAt: Date.now(),
+                header,
+                subProject: document.getElementById('subProjectSelect').value,
+                items: scrapeCurrentItemsFromDOM(),
+                safety: readSafetyChecks(),
+                photos: photos.map(p => ({ id: p.id, dataUrl: p.dataUrl, origDataUrl: p.origDataUrl || null, shapes: p.shapes || [], desc: p.desc || '' })),
+                rowIdCounter
+            };
+        }
+
+        function markDraftDirty() { draftDirty = true; scheduleDraftSave(); }
+        function scheduleDraftSave() {
+            if (!autosaveReady || autosaveDisabled || !draftDirty) return;
+            clearTimeout(draftSaveTimer);
+            draftSaveTimer = setTimeout(saveDraftNow, 700);
+        }
+
+        function saveDraftNow() {
+            clearTimeout(draftSaveTimer); draftSaveTimer = null;
+            if (!autosaveReady || autosaveDisabled || !draftDirty) return Promise.resolve();
+            const data = buildDraftSnapshot();
+            return draftDbOp('readwrite', s => s.put(data, DRAFT_KEY)).then(() => {
+                setAutosaveText('● 已自動暫存於本機 ' + draftHHMM(data.savedAt), true);
+            }, (err) => {
+                console.error(err);
+                setAutosaveText('⚠ 自動暫存失敗：' + (err && err.message ? err.message : err) + '，請記得匯出檔案備份', false);
+            });
+        }
+
+        function applyDraft(d) {
+            DRAFT_HEADER_IDS.forEach(id => { if (d.header && d.header[id] !== undefined) document.getElementById(id).value = d.header[id]; });
+            const sel = document.getElementById('subProjectSelect');
+            if (d.subProject !== undefined && Array.from(sel.options).some(o => o.value === d.subProject)) sel.value = d.subProject;
+            if (d.rowIdCounter && d.rowIdCounter > rowIdCounter) rowIdCounter = d.rowIdCounter;
+            renderManagementItems(d.items || []);
+            SAFETY_CHECK_FIELDS.forEach(f => { const el = document.getElementById(f.id); if (el) el.checked = !!(d.safety && d.safety[f.key]); });
+            photos = (d.photos || []).map(p => ({ id: p.id, dataUrl: p.dataUrl, origDataUrl: p.origDataUrl || undefined, shapes: p.shapes || [], desc: p.desc || '' }));
+            syncToPreview(); // 內含 renderPhotos()
+        }
+
+        function restoreDraftOnLoad() {
+            return draftDbOp('readonly', s => s.get(DRAFT_KEY)).then(data => {
+                if (!data || !Array.isArray(data.items)) return;
+                const when = new Date(data.savedAt);
+                const msg = '發現上次未完成的紀錄表資料（' + (when.getMonth() + 1) + '/' + when.getDate() + ' ' + draftHHMM(data.savedAt) +
+                    '，' + (data.photos || []).length + ' 張照片）。\n\n要繼續編輯嗎？\n（按「取消」會刪除這份暫存）';
+                if (confirm(msg)) {
+                    applyDraft(data);
+                    draftDirty = true;
+                    setAutosaveText('● 已還原上次暫存的資料', true);
+                } else {
+                    return draftDbOp('readwrite', s => s.delete(DRAFT_KEY));
+                }
+            }).catch(err => {
+                console.warn('本機暫存無法使用', err);
+                setAutosaveText('⚠ 這個瀏覽器無法自動暫存（可能是無痕模式），請記得匯出檔案備份', false);
+            }).then(() => {
+                autosaveReady = true;
+                if (navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(() => {});
+            });
+        }
+
+        function clearDraftAndRestart() {
+            if (!confirm('確定清除本機暫存，並清空畫面上所有填寫內容（含照片）？\n此動作無法復原。')) return;
+            autosaveDisabled = true;
+            clearTimeout(draftSaveTimer);
+            draftDbOp('readwrite', s => s.delete(DRAFT_KEY)).catch(() => {}).then(() => location.reload());
+        }
+
+        // 使用者在紀錄表內的任何輸入／選擇都視為有內容變動 (程式自行改值不會觸發這兩種事件)
+        document.addEventListener('input', (e) => { if (e.target && e.target.closest && e.target.closest('#tabPanel_record, #mobilePreviewArea')) markDraftDirty(); });
+        document.addEventListener('change', (e) => { if (e.target && e.target.closest && e.target.closest('#tabPanel_record, #mobilePreviewArea')) markDraftDirty(); });
+        // 手機常在開啟相機 APP 時回收頁面：離開前立即存檔
+        document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') saveDraftNow(); });
+        window.addEventListener('pagehide', () => { saveDraftNow(); });
+
         function switchTab(tabName) {
             document.querySelectorAll('.app-tab').forEach(el => el.classList.remove('active'));
             document.querySelectorAll('.tab-nav-btn').forEach(el => el.classList.remove('tab-nav-btn-active'));
