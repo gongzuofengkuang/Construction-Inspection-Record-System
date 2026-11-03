@@ -20360,6 +20360,10 @@ var __async = (__this, __arguments, generator) => {
         /* 程序表合併列印：與紀錄表合併列印機制相同的顯示切換模式，各自獨立 */
         .flow-merge-print-root { display: none; }
         body.flow-merge-print-mode #tabPanel_flow { display: none !important; }
+        /* 工作區 grid 規則 (.app-tab.active#tabPanel_flow) 優先權較高，會讓流程圖畫面在合併列印時仍被印出而多出一份；此處以同等優先權壓過 */
+        body.flow-merge-print-mode .app-tab.active#tabPanel_flow,
+        body.flow-merge-print-mode .app-tab.active#tabPanel_record,
+        body.flow-merge-print-mode #tabPanel_settings { display: none !important; }
         body.flow-merge-print-mode .flow-merge-print-root { display: block; }
         @media print {
             .flow-merge-print-root .flow-print-page { page-break-after: always; break-after: page; }
@@ -20738,7 +20742,7 @@ var __async = (__this, __arguments, generator) => {
                         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4"></path></svg>
                         匯出 SVG
                     </button>
-                    <button onclick="window.print()" class="bg-blue-600 hover:bg-blue-700 px-4 py-1.5 rounded text-sm transition flex items-center gap-1">
+                    <button onclick="printCurrentFlow()" class="bg-blue-600 hover:bg-blue-700 px-4 py-1.5 rounded text-sm transition flex items-center gap-1">
                         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"></path></svg>
                         列印 / PDF
                     </button>
@@ -20900,8 +20904,8 @@ var __async = (__this, __arguments, generator) => {
                         <td class="bg-slate-50 font-bold">施工流程</td>
                         <td colspan="3">
                             <label><input type="checkbox" checked> 施工前</label> &nbsp;&nbsp;&nbsp;
-                            <label><input type="checkbox" checked> 施工中檢查</label> &nbsp;&nbsp;&nbsp;
-                            <label><input type="checkbox"> 施工完成檢查</label>
+                            <label><input type="checkbox" checked> 施工中</label> &nbsp;&nbsp;&nbsp;
+                            <label><input type="checkbox"> 施工後</label>
                         </td>
                     </tr>
                     <tr>
@@ -21056,7 +21060,8 @@ var __async = (__this, __arguments, generator) => {
         <div class="max-w-3xl mx-auto space-y-4 no-print">
             <section class="bg-white rounded-lg shadow border border-slate-200 p-4">
                 <h2 class="text-base font-bold text-slate-700 mb-1">📥 標準表資料</h2>
-                <p class="text-xs text-slate-500 mb-3">匯入新的 Excel 標準表後，會更新「紀錄表」與「流程圖」使用的標準資料；匯入前可選擇逐項審核差異。</p>
+                <p class="text-xs text-slate-500 mb-3">匯入新的 Excel 標準表後，會更新「紀錄表」與「流程圖」使用的標準資料；匯入前可選擇逐項審核差異。匯入後的資料與版本歷史會自動記憶在這台裝置的瀏覽器，下次開啟不必重新匯入。</p>
+                <p id="standardDataMemoryStatus" class="text-[11px] mt-2 text-slate-400">尚未匯入新標準表（使用內建標準資料）</p>
                 <div class="flex flex-wrap gap-2">
                 <!-- 匯入標準表 Excel：可隨時匯入新的 .xlsx 檔案，同步覆蓋內建標準庫，同時更新紀錄表與程序表資料 -->
                 <label class="bg-emerald-600 hover:bg-emerald-700 px-3 py-1.5 rounded text-sm cursor-pointer transition flex items-center gap-1">
@@ -21210,7 +21215,7 @@ var __async = (__this, __arguments, generator) => {
     <div id="flowMergePrintModal" class="no-print hidden fixed inset-0 bg-black/50 z-[100] flex items-center justify-center p-4">
         <div class="bg-white rounded-xl shadow-xl w-full max-w-md p-5 max-h-[80vh] flex flex-col">
             <h3 class="text-lg font-bold mb-1">合併列印多筆程序表</h3>
-            <p class="text-xs text-slate-500 mb-3">請勾選要一併列印的程序表 (預設全選)，確認後將以瀏覽器列印功能一次輸出，每份程序表各自成頁。</p>
+            <p class="text-xs text-slate-500 mb-3">請勾選要一併列印的程序表 (預設全選)，確認後將以瀏覽器列印功能一次輸出，每份程序表各自成頁。<br><span id="flowMergeOrientHint" class="text-blue-700 font-bold"></span></p>
             <div class="flex items-center gap-2 mb-2 text-sm">
                 <button onclick="toggleSelectAllFlowMergeRecords(true)" class="text-blue-600 hover:underline">全選</button>
                 <span class="text-slate-300">|</span>
@@ -21617,7 +21622,8 @@ var __async = (__this, __arguments, generator) => {
             // 手機等窄螢幕開啟時，預設直接進入手機填報模式 (可用右上按鈕切回標準版面)
             if (window.innerWidth < 768 && !mobilePreviewModeActive) toggleMobilePreviewMode();
 
-            restoreDraftOnLoad(); // 若有上次未完成的暫存，詢問是否還原
+            // 先載入記憶的標準表資料，再詢問是否還原紀錄表暫存 (還原需要正確的標準資料)
+            loadPersistedStandardData().then(() => restoreDraftOnLoad());
         });
 
         // 讀取內嵌於頁面中的預設標準資料庫 JSON (僅負責解析，不直接寫入 standardDatabase)
@@ -21794,7 +21800,8 @@ var __async = (__this, __arguments, generator) => {
                 rows = []; // 自訂模式：從空白表格開始，使用者自行新增列
             } else {
                 const matched = standardDatabase.filter(r => r.category === selected);
-                categoryCode = matched.length > 0 ? matched[0].code : '';
+                // 表單編號前綴：標準表編號首字 E 改為 F (例：E08 → F08-0001)，其餘不變
+                categoryCode = matched.length > 0 ? String(matched[0].code || '').replace(/^E/i, 'F') : '';
                 rows = matched.map(r => ({
                     id: ++rowIdCounter,
                     stage: r.stage || '',
@@ -23345,6 +23352,7 @@ var __async = (__this, __arguments, generator) => {
             dataStore.versions.push(newVersion);
             dataStore.currentVersionId = newVersion.versionId;
             applyCurrentVersion();
+            persistStandardData(); // 記憶標準表資料與版本歷史，重新整理後仍在
             return newVersion;
         }
 
@@ -24664,8 +24672,8 @@ var __async = (__this, __arguments, generator) => {
                         <td class="bg-slate-50 font-bold">施工流程</td>
                         <td colspan="3">
                             <label><input type="checkbox" checked disabled> 施工前</label> &nbsp;&nbsp;&nbsp;
-                            <label><input type="checkbox" checked disabled> 施工中檢查</label> &nbsp;&nbsp;&nbsp;
-                            <label><input type="checkbox" disabled> 施工完成檢查</label>
+                            <label><input type="checkbox" checked disabled> 施工中</label> &nbsp;&nbsp;&nbsp;
+                            <label><input type="checkbox" disabled> 施工後</label>
                         </td>
                     </tr>
                     <tr><td class="bg-slate-50 font-bold">抽查結果</td><td colspan="3">○ 抽查合格　　╳ 有缺失需改正　　／ 無此抽查項目</td></tr>
@@ -25000,14 +25008,16 @@ var __async = (__this, __arguments, generator) => {
             return ordered;
         }
 
-        function buildOfficialHorizontalFlowElement(nodes) {
+        function buildOfficialHorizontalFlowElement(nodes, opts) {
+            opts = opts || {};
             const outer = document.createElement('div');
             outer.style.cssText = 'overflow-x:auto;width:100%;';
-            const ordered = flowHorizontalOrderedNodes(nodes);
+            const ordered = opts.ordered || flowHorizontalOrderedNodes(nodes);
             if (ordered.length === 0) return outer;
 
-            const compact = ordered.length > 6;
-            const dense = ordered.length > 8;   // 步驟很多時再縮小，盡量讓整張圖落在同一頁寬度內
+            const tierCount = opts.tierCount || ordered.length; // 分頁列印時沿用整體步驟數決定字級，各頁大小一致
+            const compact = tierCount > 6;
+            const dense = tierCount > 8;   // 步驟很多時再縮小，盡量讓整張圖落在同一頁寬度內
             const fs = dense ? 10 : (compact ? 11 : 13);
             const nodeMinW = dense ? 56 : (compact ? 76 : 104);
             const arrowMin = dense ? 12 : (compact ? 18 : 32);
@@ -25047,6 +25057,7 @@ var __async = (__this, __arguments, generator) => {
 
             ordered.forEach((n, i) => {
                 const cell = document.createElement('div');
+                cell.dataset.nodeIdx = i;
                 cell.style.cssText = `grid-row:1;grid-column:${2 * i + 1};align-self:center;justify-self:center;position:relative;z-index:1;`;
                 const title = escapeHtml(n.title);
                 if (n.kind === 'diamond') {
@@ -25634,6 +25645,8 @@ var __async = (__this, __arguments, generator) => {
             if (flowCurrentProjectKey) upsertCurrentFlowToMergeList();
             if (savedFlowcharts.length === 0) { alert('目前沒有可供合併列印的程序表。'); return; }
             renderFlowMergeModalList();
+            const oh = document.getElementById('flowMergeOrientHint');
+            if (oh) oh.textContent = flowLayoutOrientation === 'horizontal' ? '目前為「橫向」：所選程序表一律以 A4 橫向列印，一頁放不下會自動分頁並標示 (1/N)。' : '目前為「縱向」：所選程序表一律以 A4 縱向列印。';
             document.getElementById('flowMergePrintModal').classList.remove('hidden');
         }
         function closeFlowMergePrintModal() {
@@ -25658,10 +25671,24 @@ var __async = (__this, __arguments, generator) => {
         function toggleSelectAllFlowMergeRecords(checked) {
             document.querySelectorAll('.flow-merge-checkbox').forEach(cb => cb.checked = checked);
         }
-        function buildFlowPrintPageHTML(snap) {
+        function buildFlowPrintPageHTML(snap, opts) {
+            opts = opts || {};
+            const orient = opts.orientation || snap.orientation;
+            const titleText = opts.titleText || snap.title;
             const frame = document.createElement('div');
-            frame.className = 'flow-print-page appendix-d-frame p-6 w-full max-w-[210mm] mx-auto bg-white';
-            frame.appendChild(buildFlowchartStagesElement(snap.nodes, snap.orientation));
+            frame.className = 'flow-print-page appendix-d-frame p-6 w-full bg-white' + (orient === 'horizontal' ? '' : ' max-w-[210mm] mx-auto');
+            frame.style.boxSizing = 'border-box';
+            if (orient === 'horizontal') {
+                frame.appendChild(buildOfficialHorizontalFlowElement(snap.nodes, { ordered: opts.ordered, tierCount: opts.tierCount }));
+            } else {
+                frame.appendChild(buildFlowchartStagesElement(snap.nodes, orient));
+            }
+            if (!snap.showLegend && opts.alwaysShowTitle) {
+                const t = document.createElement('div');
+                t.className = 'text-center pt-6 pb-1';
+                t.innerHTML = `<h3 class="text-base font-extrabold text-black tracking-wider border-t border-black pt-2 inline-block px-8">${escapeHtml(titleText)}</h3>`;
+                frame.appendChild(t);
+            }
             if (snap.showLegend) {
                 const legend = document.createElement('div');
                 legend.className = 'mt-8 pt-3 border-t-2 border-black text-xs text-black space-y-1';
@@ -25674,24 +25701,91 @@ var __async = (__this, __arguments, generator) => {
                     <p class="leading-relaxed">1. 施工檢驗停留點及安全衛生查驗點均應於廠商完成自主檢查後辦理；於圖中未標示為施工檢驗停留點及安全衛生查驗點者，為監造單位之不定期抽查點。</p>
                     <p class="leading-relaxed">2. 安全衛生查驗點使用表單為「作業停留點安全檢核表」。</p>
                     <div class="text-center pt-4 pb-1">
-                        <h3 class="text-base font-extrabold text-black tracking-wider border-t border-black pt-2 inline-block px-8">${escapeHtml(snap.title)}</h3>
+                        <h3 class="text-base font-extrabold text-black tracking-wider border-t border-black pt-2 inline-block px-8">${escapeHtml(titleText)}</h3>
                     </div>
                 `;
                 frame.appendChild(legend);
             }
             return frame.outerHTML;
         }
+        /* 橫向程序表分頁：A4 橫向可用寬度 (297mm - 左右邊界各 1cm = 277mm ≈ 1047px)，再扣掉外框與內距後約 990px。
+           先以原字級量測整張圖，放得下就 1 頁；放不下就改用較易閱讀的字級，依各步驟實際寬度由左而右裝入，
+           每頁標題加上 (頁次/總頁數)，例如「圖 D01-04 OOO施工抽查程序(1/4)」。 */
+        const FLOW_PRINT_USABLE_WIDTH_PX = 990;
+        function splitHorizontalFlowIntoPages(snap) {
+            const ordered = flowHorizontalOrderedNodes(snap.nodes);
+            if (ordered.length === 0) return [{ ordered, tierCount: 1 }];
+            const probe = document.createElement('div');
+            probe.style.cssText = `position:fixed;left:-20000px;top:0;width:${FLOW_PRINT_USABLE_WIDTH_PX}px;visibility:hidden;`;
+            document.body.appendChild(probe);
+            try {
+                const whole = buildOfficialHorizontalFlowElement(snap.nodes, { ordered });
+                probe.appendChild(whole);
+                const grid = whole.firstChild;
+                if (grid.scrollWidth <= FLOW_PRINT_USABLE_WIDTH_PX) return [{ ordered, tierCount: ordered.length }];
+
+                // 放不下：用 compact 字級 (tierCount=7) 重新量測每個步驟寬度後分頁
+                probe.innerHTML = '';
+                const tierCount = 7;
+                const measure = buildOfficialHorizontalFlowElement(snap.nodes, { ordered, tierCount });
+                probe.appendChild(measure);
+                const widths = Array.from(measure.querySelectorAll('[data-node-idx]')).map(c => c.offsetWidth);
+                const arrowMin = 18, padding = 16;
+                const pages = [];
+                let cur = [], used = padding;
+                ordered.forEach((n, i) => {
+                    const need = widths[i] + (cur.length ? arrowMin : 0);
+                    if (cur.length && used + need > FLOW_PRINT_USABLE_WIDTH_PX) {
+                        pages.push(cur); cur = []; used = padding;
+                    }
+                    used += widths[i] + (cur.length ? arrowMin : 0);
+                    cur.push(n);
+                });
+                if (cur.length) pages.push(cur);
+                return pages.map(chunk => ({ ordered: chunk, tierCount }));
+            } finally {
+                probe.remove();
+            }
+        }
+
+        // 一份程序表 → 一頁以上的列印 HTML (縱向固定 1 頁；橫向視寬度自動分頁)
+        function buildFlowPrintPages(snap, orientation) {
+            if (orientation !== 'horizontal') return [buildFlowPrintPageHTML(snap, { orientation })];
+            const pages = splitHorizontalFlowIntoPages(snap);
+            const total = pages.length;
+            return pages.map((pg, i) => buildFlowPrintPageHTML(snap, {
+                orientation, ordered: pg.ordered, tierCount: pg.tierCount,
+                titleText: total > 1 ? `${snap.title}(${i + 1}/${total})` : snap.title,
+                alwaysShowTitle: total > 1
+            }));
+        }
+
+        // 實際列印：所選程序表一律採用「目前選定的版面方向」(橫向就全部橫向、縱向就全部縱向)，
+        // 所有頁面使用相同紙張方向與相同邊界。
+        function printFlowSnapshots(selected) {
+            const orient = flowLayoutOrientation;
+            const root = document.getElementById('flowMergePrintRoot');
+            root.innerHTML = selected.flatMap(snap => buildFlowPrintPages(snap, orient)).join('');
+            let st = document.getElementById('flowPrintPageStyle');
+            if (!st) { st = document.createElement('style'); st.id = 'flowPrintPageStyle'; document.head.appendChild(st); }
+            st.textContent = `@media print { @page { size: A4 ${orient === 'horizontal' ? 'landscape' : 'portrait'}; margin: 1.2cm 1cm 1.2cm 1cm; } }`;
+            document.body.classList.add('flow-merge-print-mode');
+            window.print();
+        }
         function printSelectedFlowMergeRecords() {
             const checkedIds = Array.from(document.querySelectorAll('.flow-merge-checkbox:checked')).map(cb => Number(cb.dataset.recordId));
             const selected = savedFlowcharts.filter(f => checkedIds.includes(f.id));
             if (selected.length === 0) { alert('請至少勾選一筆程序表再進行合併列印。'); return; }
-            const root = document.getElementById('flowMergePrintRoot');
-            root.innerHTML = selected.map(buildFlowPrintPageHTML).join('');
             closeFlowMergePrintModal();
-            document.body.classList.add('flow-merge-print-mode');
-            window.print();
+            printFlowSnapshots(selected);
+        }
+        // 流程圖分頁的「列印 / PDF」：橫向時改走同一套 (橫向紙張＋自動分頁)；縱向維持原本行為
+        function printCurrentFlow() {
+            if (flowLayoutOrientation === 'horizontal') printFlowSnapshots([buildFlowSnapshot()]);
+            else window.print();
         }
         window.addEventListener('afterprint', () => {
+            const fps = document.getElementById('flowPrintPageStyle'); if (fps) fps.textContent = '';
             document.body.classList.remove('flow-merge-print-mode');
             const root = document.getElementById('flowMergePrintRoot');
             if (root) root.innerHTML = '';
@@ -26005,6 +26099,70 @@ var __async = (__this, __arguments, generator) => {
         // 手機常在開啟相機 APP 時回收頁面：離開前立即存檔
         document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') saveDraftNow(); });
         window.addEventListener('pagehide', () => { saveDraftNow(); });
+
+        /* =====================================================================================
+         * 【標準表資料記憶 (IndexedDB)】
+         * 匯入 Excel 後建立的所有資料版本 (含目前使用的版本) 會自動存在這台裝置的瀏覽器，
+         * 重新整理或下次開啟時自動載入，不必重新匯入。資料只存在本機，不會上傳。
+         * 另用獨立資料庫，避免與紀錄表暫存互相影響。
+         * ===================================================================================== */
+        const STDDATA_DB = 'construction-inspection-standard-data';
+        const STDDATA_STORE = 'std';
+        let stdDataDbPromise = null;
+        function stdDataOpenDb() {
+            if (stdDataDbPromise) return stdDataDbPromise;
+            stdDataDbPromise = new Promise((resolve, reject) => {
+                if (!window.indexedDB) { reject(new Error('此瀏覽器不支援本機記憶')); return; }
+                const req = indexedDB.open(STDDATA_DB, 1);
+                req.onupgradeneeded = () => req.result.createObjectStore(STDDATA_STORE);
+                req.onsuccess = () => resolve(req.result);
+                req.onerror = () => reject(req.error || new Error('無法開啟本機記憶'));
+            });
+            stdDataDbPromise.catch(() => { stdDataDbPromise = null; });
+            return stdDataDbPromise;
+        }
+        function stdDataOp(mode, fn) {
+            return stdDataOpenDb().then(db => new Promise((resolve, reject) => {
+                const tx = db.transaction(STDDATA_STORE, mode);
+                const req = fn(tx.objectStore(STDDATA_STORE));
+                tx.oncomplete = () => resolve(req && req.result);
+                tx.onerror = () => reject(tx.error);
+                tx.onabort = () => reject(tx.error || new Error('儲存失敗（空間可能不足）'));
+            }));
+        }
+        function setStandardDataStatus(text, ok) {
+            const el = document.getElementById('standardDataMemoryStatus');
+            if (!el) return;
+            el.textContent = text;
+            el.className = 'text-[11px] mt-2 ' + (ok ? 'text-emerald-600' : 'text-amber-600');
+        }
+        function persistStandardData() {
+            const snapshot = { savedAt: Date.now(), versions: dataStore.versions, currentVersionId: dataStore.currentVersionId };
+            return stdDataOp('readwrite', s => s.put(snapshot, 'dataStore')).then(() => {
+                const v = getCurrentVersion();
+                setStandardDataStatus('● 已記憶標準表資料（目前版本 ' + (v ? v.versionName : '') + '，共 ' + dataStore.versions.length + ' 個版本）', true);
+            }, err => {
+                console.error(err);
+                setStandardDataStatus('⚠ 標準表資料無法記憶：' + (err && err.message ? err.message : err), false);
+            });
+        }
+        // 啟動時載入先前記憶的標準表資料 (若有)；載入後沿用既有的「套用目前版本」流程重建紀錄表與流程圖
+        function loadPersistedStandardData() {
+            return stdDataOp('readonly', s => s.get('dataStore')).then(data => {
+                if (!data || !Array.isArray(data.versions) || data.versions.length === 0) return;
+                if (!data.versions.some(v => v.versionId === data.currentVersionId)) return;
+                // 只有在記憶的版本比內建版本多、或目前版本不是內建版時才需要載入
+                if (data.versions.length === 1 && data.versions[0].sourceType === 'built-in') return;
+                dataStore.versions = data.versions;
+                dataStore.currentVersionId = data.currentVersionId;
+                applyCurrentVersion({ skipConfirmAlert: true });
+                const v = getCurrentVersion();
+                setStandardDataStatus('● 已載入上次記憶的標準表資料（目前版本 ' + (v ? v.versionName : '') + '，共 ' + dataStore.versions.length + ' 個版本）', true);
+            }).catch(err => {
+                console.warn('標準表資料記憶無法使用', err);
+                setStandardDataStatus('⚠ 這個瀏覽器無法記憶標準表資料（可能是無痕模式）', false);
+            });
+        }
 
         function switchTab(tabName) {
             document.querySelectorAll('.app-tab').forEach(el => el.classList.remove('active'));
